@@ -324,10 +324,18 @@ function updateHud() {
     $('stepLine').classList.add('hidden');
     world.labels.hide('step');
   }
-  const fixer = st.guards.find((g) => g.task?.panel && (g.mode === 'toPanel' || g.mode === 'repair' || (g.task.kind === 'fuse' && g.mode === 'suspicious')));
+  const fixer = st.guards.find((g) => g.task?.panel && ['suspicious', 'investigate', 'look', 'toPanel', 'repair'].includes(g.mode));
   const chip = $('raceChip');
   chip.classList.toggle('hidden', !fixer || st.status !== 'playing');
-  if (fixer) chip.innerHTML = fixer.mode === 'repair' ? `🔧 השומר מתקן את ${game.panel(fixer.task!.panel!).label}!` : `🔧 השומר בדרך ל${game.panel(fixer.task!.panel!).label} — עוד מעט הכול יחזור לפעול`;
+  if (fixer) {
+    const pl = game.panel(fixer.task!.panel!).label;
+    chip.innerHTML =
+      fixer.mode === 'repair'
+        ? `🔧 השומר מתקן את ${pl}!`
+        : fixer.mode === 'toPanel'
+          ? `🔧 השומר בדרך ל${pl} — עוד מעט הכול יחזור לפעול`
+          : `👮 השומר בא לבדוק — אחר כך הוא ילך לתקן את ${pl}`;
+  }
   const goalsHtml = `<span class="g ${done ? 'ok' : ''}">★ מוצג</span><span class="g ${ghost ? 'ok' : 'lost'}">★ 👻</span><span class="g ${left >= 0 ? 'ok' : 'lost'}">★ <bdi dir="ltr">${left >= 0 ? fmtTime(left) : '0:00'}</bdi></span>`;
   if ($('goals').innerHTML !== goalsHtml) $('goals').innerHTML = goalsHtml;
   const tgt = screen === 'play' && !st.panelOpen ? game.interactTarget() : null;
