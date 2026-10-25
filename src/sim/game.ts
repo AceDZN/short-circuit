@@ -745,7 +745,7 @@ export class Game {
     if (Math.abs(angleDiff(Math.atan2(dy, dx), g.heading)) > GUARD_FOV) return 0;
     if (!this.grid.los(g.x, g.y, t.x, t.y)) return 0;
     const near = 1 - d / range;
-    return (lit ? 2.1 : 1.1) * (0.55 + near) * (t.running ? 1.4 : 1);
+    return (lit ? 1.6 : 1.0) * (0.45 + near) * (t.running ? 1.4 : 1);
   }
 
   guardRange(g: GuardState) {
@@ -757,7 +757,8 @@ export class Game {
     if (g.mode === 'busted' || this.state.status !== 'playing') return;
     const t = this.state.thief;
     const rate = this.sightRate(g);
-    if (rate > 0) g.notice = Math.min(1, g.notice + rate * dt);
+    // Suspicion ("?") builds slowly so you can react; confirmation ("!") is quick.
+    if (rate > 0) g.notice = Math.min(1, g.notice + rate * dt * (g.notice < 0.5 ? 0.6 : 1.2));
     else g.notice = Math.max(0, g.notice - dt * 0.4);
     if (g.notice >= 1) {
       g.mode = 'busted';
@@ -765,13 +766,18 @@ export class Game {
       this.failWith('caught', g.id);
       return;
     }
-    if (g.notice > 0.2) {
+    if (rate > 0) g.lastSeen = [Math.floor(t.x), Math.floor(t.y)];
+    if (g.notice > 0.2 && rate > 0) {
       // "Huh? Who's there?" — he stops and stares.
       g.moving = false;
       const want = Math.atan2(t.y - g.y, t.x - g.x);
       g.heading += angleDiff(want, g.heading) * Math.min(1, dt * 3);
       this.bark(g, '!', 0.6);
       return;
+    }
+    if (g.notice > 0.2 && g.lastSeen && this.isFree(g) && !(g.task?.kind === 'noise' && g.task.point[0] === g.lastSeen[0] && g.task.point[1] === g.lastSeen[1])) {
+      // Lost sight of you: he goes to where he last saw you and searches.
+      this.assign(g, { kind: 'noise', point: g.lastSeen, attempt: 0 }, 0.25);
     }
     const L = this.level.guards.find((x) => x.id === g.id)!;
     const speed = L.speed ?? GUARD_SPEED;

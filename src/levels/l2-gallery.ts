@@ -86,9 +86,9 @@ export const L2: LevelDef = {
     { kind: 'lamp', id: 'c1', part: 'cc_l1', tile: [4, 2], radius: 3, zone: 'corridor', threshold: 0.3, style: 'ceiling' },
     { kind: 'lamp', id: 'c2', part: 'cc_l2', tile: [10, 2], radius: 3, zone: 'corridor', threshold: 0.3, style: 'ceiling' },
     { kind: 'lamp', id: 'c3', part: 'cc_l3', tile: [16, 2], radius: 2.8, zone: 'corridor', threshold: 0.3, style: 'ceiling' },
-    { kind: 'lamp', id: 'd1', part: 'cg_d1', tile: [9, 7], radius: 3.2, zone: 'gallery', threshold: 0.12, style: 'display' },
-    { kind: 'lamp', id: 'd3', part: 'cg_d3', tile: [13, 7], radius: 3.2, zone: 'gallery', threshold: 0.12, style: 'display' },
-    { kind: 'lamp', id: 'd4', part: 'cg_d4', tile: [11, 10], radius: 3.2, zone: 'gallery', threshold: 0.12, style: 'display' },
+    { kind: 'lamp', id: 'd1', part: 'cg_d1', tile: [10, 8], radius: 2.6, zone: 'gallery', threshold: 0.12, style: 'display' },
+    { kind: 'lamp', id: 'd3', part: 'cg_d3', tile: [12, 8], radius: 2.6, zone: 'gallery', threshold: 0.12, style: 'display' },
+    { kind: 'lamp', id: 'd4', part: 'cg_d4', tile: [11, 10], radius: 2.6, zone: 'gallery', threshold: 0.12, style: 'display' },
   ],
   guards: [
     { id: 'g1', route: [{ x: 15, y: 2, wait: 1e9, face: Math.PI }] },

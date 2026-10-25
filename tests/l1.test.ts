@@ -61,4 +61,16 @@ describe('heist 1 — lobby (open/closed circuit, conductor/insulator)', () => {
     expect(b.s.parts.c3_fuse.blown).toBe(true);
     expect(b.g.devices.get('door1')!.on).toBe(false);
   });
+
+  it('a guard who half-noticed you and lost sight walks over to search where he saw you', () => {
+    const b = new Bot(L1);
+    b.g.moveTo([7, 7]);
+    b.until((x) => x.guard('g1').notice > 0.25, 10);
+    expect(b.guard('g1').notice).toBeGreaterThan(0.25);
+    b.walk([4, 9]);
+    expect(b.s.status).toBe('playing');
+    b.wait(0.5);
+    expect(b.guard('g1').task?.kind).toBe('noise');
+    expect(b.guard('g1').task?.point).toEqual(b.guard('g1').lastSeen);
+  });
 });

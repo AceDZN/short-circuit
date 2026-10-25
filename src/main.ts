@@ -10,7 +10,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { Sfx } from './audio';
+import { Sfx, type MusicMode } from './audio';
 import { LEVELS } from './levels';
 import { PanelView, type PanelPick } from './render/panelView';
 import { WorldView } from './render/world';
@@ -176,7 +176,10 @@ function startPlay() {
   sfx.unlock();
   setScreen('play');
   updateBag(true);
-  if (!externalClock && !params.has('nointro')) world.startIntro();
+  if (!externalClock && !params.has('nointro')) {
+    world.startIntro();
+    sfx.whoosh();
+  }
   else maybeAutoHint('start');
 }
 
@@ -303,6 +306,7 @@ function openPanelView(id: string) {
   pvLabelsEl.style.display = '';
   const p = game.panel(id);
   hideToast();
+  sfx.whoosh();
   $('pvTitle').textContent = p.label;
   setPanelHelp();
   renderPanelBag();
@@ -676,7 +680,17 @@ function showWin() {
   progress.stars[levelIdx] = Math.max(progress.stars[levelIdx] ?? 0, stars);
   progress.unlocked = Math.max(progress.unlocked, Math.min(LEVELS.length, levelIdx + 2));
   store.set('short-circuit-progress', progress);
-  $('winStars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? '' : 'off'}">★</span>`).join('');
+  $('winStars').innerHTML = [0, 1, 2].map(() => `<span class="off">★</span>`).join('');
+  [...$('winStars').children].forEach((el, i) => {
+    if (i >= stars) return;
+    window.setTimeout(() => {
+      el.classList.remove('off');
+      el.classList.add('pop');
+      sfx.star(i);
+    }, 700 + i * 450);
+  });
+  const ranks = ['חובבנים', 'מקצוענים', 'רוח רפאים'];
+  $('winRank').textContent = `דירוג: ${ranks[stars - 1]}`;
   $('winStats').innerHTML = `<div>⏱ <bdi dir="ltr">${fmtTime(st.time)}</bdi> (יעד <bdi dir="ltr">${fmtTime(L.parSeconds)}</bdi>)</div><div>👁 נחשפת ${st.stats.spottedPeaks} פעמים</div><div>${ghost ? '👻 רוח רפאים!' : `נפילות: ${st.stats.fails}`}</div><div>💡 רמזים: ${st.stats.hintsUsed}</div>`;
   $('winLearn').textContent = L.concept;
   $('btnNext').classList.toggle('hidden', levelIdx >= LEVELS.length - 1);
@@ -714,11 +728,12 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyE' || e.code === 'Enter') interact();
     if (e.code === 'Tab') {
       scannerToggle = !scannerToggle;
-      sfx.scanner(scannerToggle);
+      if (scannerToggle) sfx.scanSweep();
+      else sfx.scanner(false);
     }
     if (e.code === 'Space') {
       e.preventDefault();
-      if (!scannerHeld) sfx.scanner(true);
+      if (!scannerHeld) sfx.scanSweep();
       scannerHeld = true;
     }
     if (e.code === 'KeyZ') world.rotate(-1);
@@ -847,7 +862,8 @@ function nearestWalkable(t: [number, number]): [number, number] {
 $('btnScanner').addEventListener('click', () => {
   scannerToggle = !scannerToggle;
   sfx.unlock();
-  sfx.scanner(scannerToggle);
+  if (scannerToggle) sfx.scanSweep();
+  else sfx.scanner(false);
 });
 $('btnAct').addEventListener('click', interact);
 $('btnPause').addEventListener('click', () => setScreen('pause'));
@@ -866,6 +882,13 @@ $('pvMeter').addEventListener('click', () => {
     panelView.rebuild();
   }
   showToast(meterMode ? 'מד זרם: עכשיו רואים את הזרם בכל חוט. השוו את הזרם לפני רכיב ואחריו.' : 'מד זרם כבוי.', false, 3500);
+});
+document.addEventListener('pointerover', (e) => {
+  const b = (e.target as HTMLElement).closest?.('button, .level-card');
+  if (b && !(b as HTMLButtonElement).disabled) sfx.uiHover();
+});
+document.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest?.('button')) sfx.uiSelect();
 });
 $('btnStart').addEventListener('click', () => {
   sfx.unlock();
@@ -1004,6 +1027,40 @@ function draw(dt: number) {
     renderPass.camera = world.camera;
   } else composer.render();
   updateHud();
+  driveAudio(dt);
+}
+
+let stepT = 0;
+let guardStepT = 0;
+let wasAlert = false;
+/** Music follows the heist; footsteps follow the walk cycle. */
+function driveAudio(dt: number) {
+  const st = game.state;
+  const notice = Math.max(0, ...st.guards.map((g) => g.notice), ...Object.values(st.camMeter));
+  const hunting = st.guards.some((g) => g.mode === 'investigate' || g.mode === 'suspicious' || (g.task?.kind === 'fuse' && g.mode === 'toPanel'));
+  let mode: MusicMode = 'sneak';
+  if (screen === 'title' || screen === 'brief') mode = 'menu';
+  else if (st.status === 'won') mode = 'win';
+  else if (st.status === 'failed') mode = st.fail && ['alarm', 'camera', 'laser', 'pedestal'].includes(st.fail.reason) ? 'alarm' : 'off';
+  else if (notice > 0.2 || hunting) mode = 'tension';
+  sfx.setMusic(mode);
+  const alert = notice > 0.5;
+  if (alert && !wasAlert && st.status === 'playing') sfx.alertSting();
+  wasAlert = alert;
+  if (screen !== 'play' || !game.running) return;
+  const t = st.thief;
+  if (t.moving) {
+    stepT -= dt;
+    if (stepT <= 0) {
+      stepT = t.running ? 0.27 : 0.42;
+      sfx.footstep(t.running);
+    }
+  } else stepT = 0.1;
+  guardStepT -= dt;
+  if (guardStepT <= 0) {
+    guardStepT = 0.5;
+    if (st.guards.some((g) => g.moving && Math.hypot(g.x - t.x, g.y - t.y) < 8)) sfx.guardStep();
+  }
 }
 
 function frame(now: number) {

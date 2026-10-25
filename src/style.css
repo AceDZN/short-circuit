@@ -227,3 +227,7 @@ body.in-panel .hud-bottom, body.in-panel .hud-tools, body.in-panel .prompt, body
 .brief-goal .stars-goal { display: flex; flex-direction: column; gap: 4px; text-align: right; margin-top: 8px; color: var(--dim); }
 .brief-goal .stars-goal b { color: var(--yellow); }
 @media (max-width: 760px) { .level-grid { grid-template-columns: repeat(3, 1fr); } .level-card { min-height: 96px; } }
+.stars span { display: inline-block; transition: color 0.2s; }
+.stars span.pop { animation: starPop 0.45s cubic-bezier(0.2, 1.8, 0.4, 1); text-shadow: 0 0 18px var(--yellow); }
+@keyframes starPop { from { transform: scale(2.6) rotate(-30deg); } to { transform: scale(1) rotate(0); } }
+.win-rank { font-size: 22px; font-weight: 800; color: var(--cyan); margin-bottom: 8px; }

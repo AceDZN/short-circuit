@@ -206,6 +206,8 @@ export interface GuardState {
   /** 0..1 how sure this guard is that he sees someone. */
   notice: number;
   moving: boolean;
+  /** Where he last caught sight of the thief. */
+  lastSeen?: Tile;
 }
 
 export interface PartState {
