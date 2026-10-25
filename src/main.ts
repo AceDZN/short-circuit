@@ -1174,7 +1174,7 @@ function driveAudio(dt: number) {
   if (t.moving) {
     stepT -= dt;
     if (stepT <= 0) {
-      stepT = t.running ? 0.27 : 0.42;
+      stepT = t.running ? 0.45 : 0.71; // half a run cycle at the clip's time scale
       sfx.footstep(t.running);
     }
   } else stepT = 0.1;
