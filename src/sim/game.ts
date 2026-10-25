@@ -258,7 +258,8 @@ export class Game {
     for (const d of this.level.devices) {
       const I = s.parts[d.part]?.removed ? 0 : this.current(d.part);
       const nominal = this.nominalI.get(d.id) ?? ('threshold' in d ? d.threshold * 2.5 : 1);
-      let on = I >= d.threshold * TOL;
+      const th = 'threshold' in d ? d.threshold : 0;
+      let on = I >= th * TOL;
       let value = 0;
       let strain = false;
       if (d.kind === 'alarm') on = I >= d.threshold; // armed loop is healthy
@@ -272,6 +273,9 @@ export class Game {
       if (d.kind === 'window') on = !!s.windowsOpen[d.id];
       this.devices.set(d.id, { id: d.id, kind: d.kind, on, current: I, brightness: on ? Math.min(1.8, I / nominal) : 0, value, strain });
     }
+    // An alarm loop reacts the instant its current stops, even mid-rewire.
+    if (!silent && s.status === 'playing')
+      for (const d of this.level.devices) if (d.kind === 'alarm' && !this.devices.get(d.id)!.on) this.failWith('alarm', d.id);
   }
 
   private fuseBlown(partId: string) {

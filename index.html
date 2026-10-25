@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#07060f" />
+    <title>קצר — Short Circuit</title>
+    <meta name="description" content="שוד לילי במוזיאון החשמל: מחווטים מחדש את המעגלים שבקירות כדי לחמוק מהשומרים. משחק תלת-ממד למדעים כיתה ח׳." />
+  </head>
+  <body>
+    <canvas id="gl"></canvas>
+    <div id="labels"></div>
+    <div id="pvlabels"></div>
+
+    <div id="hud" class="hidden">
+      <div class="hud-tl">
+        <div class="eye-meter" id="eyeMeter" aria-label="מד חשיפה">
+          <svg viewBox="0 0 40 24" class="eye"><path d="M2 12 Q20 -6 38 12 Q20 30 2 12Z" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="20" cy="12" r="5.5" fill="currentColor"/></svg>
+          <div class="segs" id="eyeSegs"></div>
+        </div>
+        <div class="chip timer" id="timer"><bdi dir="ltr">00:00</bdi></div>
+        <div class="chip light" id="lightState">בצל</div>
+      </div>
+      <div class="hud-tr">
+        <div class="objective" id="objective"><span class="flag">⚑</span><span id="objText"></span></div>
+        <div class="level-name" id="levelName"></div>
+      </div>
+      <div class="hud-tools">
+        <button class="icon-btn" id="btnPause" title="השהיה (P)">⏸</button>
+        <button class="icon-btn" id="btnMute" title="השתקה (M)">🔊</button>
+        <button class="icon-btn" id="btnRotL" title="סיבוב מצלמה (Z)">⟲</button>
+        <button class="icon-btn" id="btnRotR" title="סיבוב מצלמה (X)">⟳</button>
+        <button class="icon-btn hint-btn hidden" id="btnHint" title="רמז (H)">💡</button>
+      </div>
+      <div class="prompt hidden" id="prompt"></div>
+      <div class="toast hidden" id="toast"></div>
+      <div class="hud-bottom">
+        <button class="scanner-btn" id="btnScanner"><span class="scan-ico">⌜ ⌝<br />⌞ ⌟</span><span>סורק</span><small>TAB / רווח</small></button>
+        <div class="bag" id="bag"></div>
+        <button class="act-btn" id="btnAct">E</button>
+      </div>
+    </div>
+
+    <div id="panelui" class="hidden">
+      <div class="pv-top">
+        <div class="pv-title" id="pvTitle"></div>
+        <div class="pv-help" id="pvHelp"></div>
+      </div>
+      <div class="pv-inspector" id="pvInspector"></div>
+      <div class="pv-bottom">
+        <div class="pv-bag">
+          <div class="pv-bag-title">תיק</div>
+          <div class="pv-bag-items" id="pvBag"></div>
+        </div>
+        <div class="pv-actions">
+          <button class="pv-btn meter" id="pvMeter"><span>⏲</span>מד זרם</button>
+          <button class="pv-btn close" id="pvClose"><span>✕</span>סגור</button>
+          <button class="pv-btn cut" id="pvCut" disabled><span>✂</span>חתוך</button>
+        </div>
+      </div>
+      <div class="pv-inset-label" id="pvInsetLabel">מצלמת אבטחה · שידור חי</div>
+    </div>
+
+    <div id="screens">
+      <section id="scrTitle" class="screen">
+        <div class="title-card">
+          <div class="logo"><span class="bolt">⚡</span>קצר</div>
+          <div class="logo-en">SHORT CIRCUIT</div>
+          <p class="tagline">שוד לילי במוזיאון החשמל. כל מצלמה, לייזר ואזעקה הם עוד מעגל חשמלי בקיר — ואתם מחווטים אותם מחדש.</p>
+          <div class="level-grid" id="levelGrid"></div>
+          <div class="title-actions">
+            <button class="big-btn" id="btnStart">מתחילים בשוד</button>
+          </div>
+          <div class="controls-help">
+            <div><kbd>W A S D</kbd> / חצים / לחיצה על הרצפה — תזוזה</div>
+            <div><kbd>Shift</kbd> ריצה (רועשת!) · <kbd>E</kbd> פעולה · <kbd>TAB</kbd>/<kbd>רווח</kbd> סורק · <kbd>Z</kbd>/<kbd>X</kbd> סיבוב</div>
+          </div>
+          <label class="opt"><input type="checkbox" id="optReduced" /> הפחתת תנועה</label>
+        </div>
+      </section>
+      <section id="scrBrief" class="screen hidden">
+        <div class="brief-card">
+          <div class="brief-num" id="briefNum"></div>
+          <h2 id="briefTitle"></h2>
+          <h3 id="briefSub"></h3>
+          <p id="briefText"></p>
+          <div class="brief-goal" id="briefGoal"></div>
+          <button class="big-btn" id="btnGo">יוצאים לדרך</button>
+        </div>
+      </section>
+      <section id="scrFail" class="screen hidden">
+        <div class="fail-card">
+          <div class="stamp" id="failStamp">נתפסת!</div>
+          <div class="fail-line" id="failLine"></div>
+          <div class="fail-explain" id="failExplain"></div>
+          <div class="fail-actions">
+            <button class="big-btn red" id="btnRetry">↻ נסו שוב</button>
+            <button class="big-btn ghost" id="btnRestart">מההתחלה</button>
+          </div>
+        </div>
+      </section>
+      <section id="scrWin" class="screen hidden">
+        <div class="win-card">
+          <div class="stamp good">השוד הצליח!</div>
+          <div class="stars" id="winStars"></div>
+          <div class="win-stats" id="winStats"></div>
+          <div class="win-learn" id="winLearn"></div>
+          <div class="fail-actions">
+            <button class="big-btn" id="btnNext">לשוד הבא ←</button>
+            <button class="big-btn ghost" id="btnReplay">שוב</button>
+          </div>
+        </div>
+      </section>
+      <section id="scrPause" class="screen hidden">
+        <div class="brief-card">
+          <h2>הפסקה</h2>
+          <div class="fail-actions">
+            <button class="big-btn" id="btnResume">ממשיכים</button>
+            <button class="big-btn ghost" id="btnPauseRestart">מתחילים את השוד מחדש</button>
+            <button class="big-btn ghost" id="btnMenu">לתפריט</button>
+          </div>
+        </div>
+      </section>
+      <div id="glLost" class="screen hidden"><div class="brief-card"><h2>הגרפיקה נעצרה</h2><p>מנסים להפעיל מחדש…</p></div></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
