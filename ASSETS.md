@@ -9,7 +9,7 @@ All 3D models were generated in **Tripo Studio** (https://studio.tripo3d.ai, the
 | File | Source task | Rig / clips | Size | Triangles | Facing | Height (bbox, glTF units) |
 |---|---|---|---|---|---|---|
 | `public/models/thief.glb` | image→3D `a1829d52-efd6-48bc-8fa8-22cfbb78875a` | Mixamo humanoid, 66 joints. **v2 clips:** `walk` (2.33 s), `afraid` (2.58 s), `cheer` (12.08 s), `run` (1.25 s), `idle` (15.33 s) | 1,780,016 B | 19,506 | **+Z** | **1.0** (x ±0.275, z ±0.126), feet at y=0 |
-| `public/models/guard.glb` | image→3D `25a002f5-6366-46db-8123-74da1c34b142` | Mixamo humanoid, 65 joints. Clips: `frightened` (3.38 s), `walk` (2.33 s), `look_around` (15.58 s), `idle` (15.33 s) | 1,823,792 B | 19,760 | **+Z** | **1.0** (x ±0.338, z ±0.139), feet at y=0 |
+| `public/models/guard.glb` | image→3D `25a002f5-6366-46db-8123-74da1c34b142` | Mixamo humanoid, 65 joints. **v2 clips:** `frightened` (3.38 s), `sit` (7.17 s), `walk` (2.33 s), `look_around` (15.58 s), `run` (1.25 s), `idle` (15.33 s), `angry_01` (3.50 s) | 2,170,688 B | 19,760 | **+Z** | **1.0** (x ±0.338, z ±0.139), feet at y=0 |
 | `public/models/panel.glb` | image→3D `f8d65cb5-68b1-43f8-8c4f-3f833cbc47ba` | static | 619,864 B | 16,752 | door faces **+Z** | 1.0 (x ±0.268, z ±0.198), base at y=0 |
 | `public/models/exhibit-bulb.glb` | image→3D `96d713cd-ca44-4269-847b-41711d76546a` | static | 712,404 B | 19,567 | plaque faces **+Z** (round) | 1.0 (x ±0.304, z ±0.304), base at y=0 |
 | `public/models/vault-door.glb` | text→3D `6e2d0f64-65dc-4024-975d-c31671341c2f` | static | 702,364 B | 18,486 | door face **+Z** | 0.933 (x ±0.5, z ±0.180), base at y=0 |
@@ -96,11 +96,44 @@ npx --yes @gltf-transform/cli webp   b.glb public/models/<final>.glb --quality 8
 - Verified afterwards with `gltf-transform inspect` and a Blender 5.2 headless import. Thief: 1 skin, 66 joints, clips `walk` and `idle`. Guard: 1 skin, 65 joints, clips `frightened`, `walk`, `look_around`, `idle`. Blender import plus a render from the +Z side confirmed the facing for all five.
 - Raw downloads stay in `~/Downloads` (`sc-*-raw.glb`) and are not in the repo. Working copies are in the session scratchpad.
 
+## Second pass: 25 Oct 2026, afternoon (animations)
+
+The user asked to "make sure you use good 3d models". The coordinator asked for more clips on the existing rigs plus up to 4 new hero models.
+
+**Balance at the start of this pass: 25 credits** (shared pool, drained by other crews since the first pass ended at 145). That is below the ~40 floor set for new generations, so **no new models were generated**. The Tesla coil, security camera, dynamo and reception desk remain to do; see the follow-ups below. AI Animation (20 credits per clip) was not used either, since it would nearly empty the shared pool.
+
+Preset retargets were confirmed free again: Tripo shows no price on preset cards, and the balance read 25 before and after every click. Exports are free. **Credits spent this pass: 0. Balance left: 25.**
+
+### Thief re-export (`thief.glb`, v2)
+- The `run` retarget that stalled in the first pass had completed by this session, so no extra job was needed.
+- Presets added: `afraid` (arms up near the face, the closest preset to a busted surrender) and `cheer` (both arms raised overhead in a victory pump; its opening seconds also read as hands-up).
+- **Tripo's preset library has no sneak, crouch-walk, surrender or hands-up clip.** The full list was checked: afraid, agree, angry_01–03, basketball_shot, bow, box_01–03, cast_a_spell, cheer, chop, clap, climb, complain_01/02, crossover_dribble, cry, dance_01–06, defeat, defeat_02, depressed, dig, dive, dribble, fall, fire, flee_01/02, flip, fold_arms, football_*, freaky, frightened, front_kick_01/02, frustrated_01/02, greet_01–04, heart_pose, hit_to_*, hug, idle, jump_down, jump, jump_rope_01/02, laugh_01/02, lift_heavy, look_around, make_a_call_01/02, pitch_baseball, play_mobile_game, play_video_game, press-up, run, run_upstairs, scared_01/02, stretch, shoot, shovel, sing_01–04, sit, slash, sob, standing_relax, surf, swagger, swim, turn, volleyball, wait, walk, warm_up, wave_goodbye_01/02. A sneak clip needs AI Animation (20 credits) or stays procedural (crouch offset plus a slowed `walk`).
+- Export: GLB, 1K, skeleton on, "Animation stay in Place" on, all 5 clips selected. File name `sc-thief-v2-raw`.
+- **Clips (exact names, glTF order):** `walk` (2.33 s), `afraid` (2.58 s), `cheer` (12.08 s), `run` (1.25 s), `idle` (15.33 s).
+- Raw: `~/Downloads/sc-thief-v2-raw.glb`, 2,245,304 B, sha256 `0f1ef9b7b4e9d6ee1e14ad9d3860767dfc2f55ea41a4d539eafe7172ea72d98a`.
+- Final `public/models/thief.glb`: 1,780,016 B, sha256 `ed6a80103d5c429bab463cb27d3c0f506e4b178e633f1c482b74d91dcda24907`, 19,506 tris, 1 skin / 66 joints, WebP 1024 ×3. Facing +Z, height 1.0, as before.
+
+### Guard re-export (`guard.glb`, v2)
+- Presets added: `run`, `angry_01` (arms flared out in a "Hey!" stance, used as the angry/alert reaction; there is no pointing preset), and `sit` (seated idle on an invisible chair, made for the reception desk; Tripo's `sit` includes a lean-on-hand idle).
+- The `run` retarget sat in Tripo's queue for about 15 minutes before completing. The queue appears to be shared across the account, so other crews' jobs come first.
+- Export: same settings, all 7 clips. File name `sc-guard-v2-raw`.
+- **Clips (exact names, glTF order):** `frightened` (3.38 s), `sit` (7.17 s), `walk` (2.33 s), `look_around` (15.58 s), `run` (1.25 s), `idle` (15.33 s), `angry_01` (3.50 s).
+- Raw: `~/Downloads/sc-guard-v2-raw.glb`, 2,661,636 B, sha256 `43ea66d550dffbe2c49ff65990a812f76ef4132094808e4405faef179d08393c`.
+- Final `public/models/guard.glb`: 2,170,688 B, sha256 `2016361f6cd72aa73d9ef6559a14c6b505493a61705c1657543a4169f5f30473`, 19,760 tris, 1 skin / 65 joints, WebP 1024 ×3. Facing +Z, height 1.0, as before.
+
+### Processing (v2, unchanged pipeline)
+`gltf-transform dedup` → `prune --keep-attributes true` → `webp --quality 85`. Verified with a GLB JSON check (skins, joints, clip names and durations, WebP images) and a Blender 5.2 import:
+- thief actions `afraid, cheer, idle, run, walk`
+- guard actions `angry_01, frightened, idle, look_around, run, sit, walk`
+- both with an Armature modifier present
+
+All clips are in-place (no root motion). `run` is a 1.25 s loop, so drive the movement speed in code (~3.5–4 m/s after scaling).
+
 ## Known gaps / follow-ups
 
-1. Thief `run` (stuck retarget job) and a hands-up or crouch-sneak clip. A later session could re-apply the free `run` preset once the job clears, and buy AI Animation clips (20 credits each) if the budget allows.
-2. The bulb glass and the panel indicator lights are baked and opaque. The code overlays described above are needed for the scanner and alarm looks.
-3. The Tesla coil exhibit was not generated. The mockups show one, so make it procedural or use a later generation.
+1. **New hero models not generated (credits).** Tesla coil (`tesla-coil.glb`), wall security camera (`security-camera.glb`, lens +Z), dynamo exhibit (`dynamo.glb`), and curved reception desk (`reception-desk.glb`, ~3 m wide, front +Z). Each costs ~30 credits as image→3D. The balance is 25, so at least ~120 is needed for all four. The ChatGPT reference-image → Tripo image→3D flow above is ready to reuse once credits exist.
+2. No sneak/crouch or true surrender clip: AI Animation is 20 credits each, or keep these procedural.
+3. The bulb glass and the panel indicator lights are baked and opaque. The code overlays described above are needed for the scanner and alarm looks.
 
 ## In-game use (lead)
 

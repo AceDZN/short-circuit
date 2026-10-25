@@ -250,3 +250,4 @@ body.in-panel .joy { display: none !important; }
 .goals .g.ok { color: var(--yellow); border-color: rgba(255, 208, 74, 0.5); }
 .goals .g.lost { color: #5a6080; text-decoration: line-through; }
 @media (max-width: 760px) { .goals { display: none; } }
+.level-name { display: none; }

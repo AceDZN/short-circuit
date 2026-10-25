@@ -533,10 +533,13 @@ export class Game {
       }
       // idle chatter now and then
       if (g.mode === 'patrol' && !g.say && Math.floor(s.time / 17) !== Math.floor((s.time - dt) / 17) && Math.hypot(g.x - s.thief.x, g.y - s.thief.y) < 10) this.say(g, 'idle', 3);
-      // a close call: he passes right by you in the dark and never notices
+      // a close call: he passes right by you in the dark, never notices, and walks on
       g.closeT = Math.max(0, (g.closeT ?? 0) - dt);
       const d = Math.hypot(g.x - s.thief.x, g.y - s.thief.y);
-      if (d < 2.2 && g.notice < 0.05 && g.mode !== 'busted' && !g.closeT && !this.isLit(s.thief.x, s.thief.y)) {
+      if (g.notice > 0.3 || g.mode === 'busted') g.closeArmed = false;
+      else if (d < 2.2 && g.notice < 0.05 && !g.closeT && !this.isLit(s.thief.x, s.thief.y)) g.closeArmed = true;
+      else if (g.closeArmed && d > 3.4) {
+        g.closeArmed = false;
         g.closeT = 8;
         s.stats.closeCalls++;
         this.emit({ type: 'closeCall', id: g.id, x: s.thief.x, y: s.thief.y });

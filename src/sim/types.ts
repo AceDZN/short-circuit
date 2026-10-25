@@ -212,6 +212,7 @@ export interface GuardState {
   say?: string;
   sayT?: number;
   closeT?: number;
+  closeArmed?: boolean;
 }
 
 export interface PartState {
