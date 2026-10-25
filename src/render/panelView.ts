@@ -155,7 +155,7 @@ export class PanelView {
       // circuit name tag
       const xs = Object.values(c.nodes).map((n) => n[0]);
       const ys = Object.values(c.nodes).map((n) => n[1]);
-      this.labels.set(`cname-${c.id}`, new THREE.Vector3((Math.max(...xs) + Math.min(...xs)) / 2 - 6, 3.6 - Math.min(...ys) + 0.55, 0).multiplyScalar(S), c.name + (c.showPower ? this.powerTag(c) : ''), 'pv-circuit');
+      this.labels.set(`cname-${c.id}`, new THREE.Vector3((Math.max(...xs) + Math.min(...xs)) / 2 - 6, 3.6 - Math.max(...ys) - 0.7, 0).multiplyScalar(S), c.name + (c.showPower ? this.powerTag(c) : ''), 'pv-circuit');
       for (const p of c.parts) {
         const ps = st.parts[p.id];
         if (ps.removed) {
