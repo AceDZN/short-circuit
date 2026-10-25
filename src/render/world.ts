@@ -946,18 +946,21 @@ export class WorldView {
     const t = st.thief;
     this.thief.root.position.set(t.x, 0, t.y);
     this.thief.root.rotation.y = Math.PI / 2 - t.heading;
-    let pose: Parameters<Actor['setPose']>[0] = t.moving ? (t.running ? 'run' : 'walk') : 'idle';
+    // the thief always jogs (the run clip), time-scaled to his real speed
+    let pose: Parameters<Actor['setPose']>[0] = t.moving ? 'run' : 'idle';
     if (st.panelOpen) pose = 'interact';
     if (st.status === 'failed') pose = 'busted';
     if (st.status === 'won') pose = 'cheer';
     this.thief.setPose(pose);
-    this.thief.update(game.running || st.status !== 'playing' ? dt : 0, 0);
+    this.thief.update(game.running || st.status !== 'playing' ? dt : 0, t.moving ? (t.running ? 4.3 : 2.7) : 0);
     this.thiefLamp.intensity = game.isLit(t.x, t.y) ? 2 : 6;
 
     // guards
     for (const gs of st.guards) {
       const gv = this.guards.get(gs.id)!;
+      const prev = gv.actor.root.position.clone();
       gv.actor.root.position.set(gs.x, 0, gs.y);
+      const gSpeed = dt > 0 ? Math.hypot(gs.x - prev.x, gs.y - prev.z) / dt : 0;
       gv.actor.root.rotation.y = Math.PI / 2 - gs.heading;
       let gp: Parameters<Actor['setPose']>[0] = gs.moving ? 'walk' : gs.mode === 'look' ? 'look' : 'idle';
       if (gs.mode === 'repair') gp = 'interact';
@@ -965,7 +968,7 @@ export class WorldView {
       if (post && gs.mode === 'patrol' && !gs.moving) gp = 'sit';
       if (gs.notice > 0.2 || gs.mode === 'busted') gp = 'alert';
       gv.actor.setPose(gp);
-      gv.actor.update(game.running || st.status !== 'playing' ? dt : 0, 0);
+      gv.actor.update(game.running || st.status !== 'playing' ? dt : 0, gSpeed);
       const r = game.guardRange(gs);
       this.updateFan(gv.fanFar, gs.x, gs.y, gs.heading, r.fov, r.lit, 0.04);
       this.updateFan(gv.fanNear, gs.x, gs.y, gs.heading, r.fov, r.dark, 0.05);

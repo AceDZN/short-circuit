@@ -54,7 +54,7 @@ function pickClip(clips: THREE.AnimationClip[], pose: ActorPose) {
 }
 
 /** Wrap a rigged GLB into an Actor, normalized to `height` metres, facing +Z. */
-function glbActor(gltf: GLTF, height: number, yaw: number): Actor {
+function glbActor(gltf: GLTF, height: number, yaw: number, stride: Record<string, number> = {}): Actor {
   const model = skeletonClone(gltf.scene) as THREE.Group;
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
@@ -101,7 +101,12 @@ function glbActor(gltf: GLTF, height: number, yaw: number): Actor {
       next.clampWhenFinished = once;
       next.timeScale = p === 'run' && !hasRun ? 1.7 : 1;
     },
-    update(dt) {
+    update(dt, speed) {
+      // match the clip's stride to the actual ground speed so feet don't slide
+      if (action && speed > 0.05 && (pose === 'walk' || pose === 'run' || pose === 'sneak')) {
+        const s = stride[action.getClip().name];
+        if (s) action.timeScale = Math.min(2.2, Math.max(0.4, speed / s));
+      }
       mixer.update(dt);
       // No surrender/cheer clip in the Tripo rig: raise the arms on top of the idle clip.
       if ((pose === 'busted' || pose === 'cheer') && arms.la && arms.ra && !hasClip(pose)) {
@@ -277,7 +282,7 @@ export function createActor(kind: 'thief' | 'guard', onSwap?: (a: Actor) => void
   loadModel(kind).then((g) => {
     if (!g || !g.animations.length) return;
     const meta = MODEL_META[kind];
-    const next = glbActor(g, meta.height, meta.yaw);
+    const next = glbActor(g, meta.height, meta.yaw, meta.stride);
     holder.remove(inner.root);
     inner = next;
     holder.add(next.root);
@@ -290,7 +295,8 @@ export function createActor(kind: 'thief' | 'guard', onSwap?: (a: Actor) => void
 }
 
 /** Height and forward-axis correction for each rigged GLB (see ASSETS.md). */
-export const MODEL_META: Record<'thief' | 'guard', { height: number; yaw: number }> = {
-  thief: { height: 1.95, yaw: 0 },
-  guard: { height: 2.1, yaw: 0 },
+export const MODEL_META: Record<'thief' | 'guard', { height: number; yaw: number; stride: Record<string, number> }> = {
+  // stride: ground speed (m/s) each locomotion clip covers at 1× after scaling (measured from the foot bones)
+  thief: { height: 1.95, yaw: 0, stride: { walk: 1.15, run: 3.07 } },
+  guard: { height: 2.1, yaw: 0, stride: { walk: 1.05, run: 2.81 } },
 };
