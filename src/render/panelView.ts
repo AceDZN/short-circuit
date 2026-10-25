@@ -296,6 +296,21 @@ export class PanelView {
     // component body
     const comp = this.componentMesh(p, live, open);
     if (comp) group.add(comp);
+    // device card: which thing in the building this load is
+    const icon = DEVICE_ICON[p.kind];
+    if (icon) {
+      const center = new THREE.Vector3(0, -0.05, 0);
+      const perp = new THREE.Vector3(-dir.y, dir.x, 0).normalize();
+      if (perp.dot(mid.clone().sub(center)) < 0) perp.negate();
+      const card = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.1), new THREE.MeshBasicMaterial({ map: iconTex(icon), transparent: true, opacity: live ? 1 : 0.35 }));
+      card.position.copy(mid).addScaledVector(perp, 0.115).setZ(0.03);
+      this.dyn.add(card);
+      if (live) {
+        const halo = glowSprite(0x38e8ff, 0.22, 0.35);
+        halo.position.copy(card.position).setZ(0.025);
+        this.dyn.add(halo);
+      }
+    }
     // pick volume
     const hit = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.05, len * 0.8), isWire ? 0.045 : 0.09, 0.06), new THREE.MeshBasicMaterial({ visible: false }));
     hit.userData = { pick };
@@ -556,6 +571,26 @@ export class PanelView {
   dispose() {
     this.labels.clear();
   }
+}
+
+const DEVICE_ICON: Partial<Record<PartDef['kind'], string>> = {
+  lamp: '💡',
+  camera: '📷',
+  laser: '🔴',
+  motor: '🚪',
+  relay: '🚨',
+  buzzer: '🔔',
+  sensor: '🪟',
+  cable: '⚠️',
+};
+const iconCache = new Map<string, THREE.Texture>();
+function iconTex(icon: string) {
+  let t = iconCache.get(icon);
+  if (!t) {
+    t = labelTex(icon, { bg: '#0c2230', fg: '#ffffff', w: 128, h: 128, font: '72px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' });
+    iconCache.set(icon, t);
+  }
+  return t;
 }
 
 function resistorMesh(r: number) {
