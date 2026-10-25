@@ -91,6 +91,7 @@ let attempt = 1;
 let hintsUsedThisLevel = 0;
 let pendingInteract: string | null = null;
 let meterMode = false;
+let introWasActive = true;
 const keys = new Set<string>();
 const labelsEl = $('labels');
 const pvLabelsEl = $('pvlabels');
@@ -109,6 +110,7 @@ function loadLevel(i: number) {
   renderPass.scene = world.scene;
   renderPass.camera = world.camera;
   hintsShown.clear();
+  introWasActive = true;
   hintAvailable = null;
   hintsUsedThisLevel = 0;
   attempt = 1;
@@ -172,7 +174,8 @@ function startPlay() {
   sfx.unlock();
   setScreen('play');
   updateBag(true);
-  maybeAutoHint('start');
+  if (!externalClock && !params.has('nointro')) world.startIntro();
+  else maybeAutoHint('start');
 }
 
 // ───────────────────────────── hints
@@ -633,6 +636,10 @@ window.addEventListener('keydown', (e) => {
   sfx.unlock();
   keys.add(e.code);
   if (e.code === 'Tab') e.preventDefault();
+  if (screen === 'play' && world.introActive) {
+    world.skipIntro();
+    return;
+  }
   if (screen === 'play') {
     if (panelView) {
       if (e.code === 'Escape' || e.code === 'KeyE') closePanel();
@@ -704,6 +711,7 @@ canvas.addEventListener('pointerup', (e) => {
   if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 12) return;
   downAt = null;
   if (screen !== 'play') return;
+  if (world.introActive) return world.skipIntro();
   const r = canvas.getBoundingClientRect();
   const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
   const ny = -((e.clientY - r.top) / r.height) * 2 + 1;
@@ -844,6 +852,11 @@ function applyInput() {
 
 function tickSim(dt: number) {
   if (screen !== 'play') return;
+  if (world.introActive) return;
+  if (introWasActive) {
+    introWasActive = false;
+    maybeAutoHint('start');
+  }
   applyInput();
   game.advance(dt);
   if (pendingInteract && !game.state.thief.path.length) {

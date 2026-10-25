@@ -51,6 +51,7 @@ interface WireRoute {
   phase: number;
   tube: THREE.Mesh;
   tubeMat: THREE.MeshBasicMaterial;
+  segs: THREE.Mesh[];
 }
 
 export const tileCenter = (x: number, y: number, h = 0) => new THREE.Vector3(x + 0.5, h, y + 0.5);
@@ -87,6 +88,12 @@ export class WorldView {
   private guards = new Map<string, { actor: Actor; spot: THREE.SpotLight; fanFar: THREE.Mesh; fanNear: THREE.Mesh }>();
   private wires: WireRoute[] = [];
   private scannerGroup = new THREE.Group();
+  private waveRing!: THREE.Mesh;
+  private noiseRings: { mesh: THREE.Mesh; t: number }[] = [];
+  private noiseTimer = 0;
+  private intro: { pts: { pos: THREE.Vector3; hold: number; caption: string }[]; i: number; t: number } | null = null;
+  private waveT = -1;
+  private prevScan = 0;
   private alarmT = 0;
   private time = 0;
   private moon!: THREE.DirectionalLight;
@@ -528,47 +535,170 @@ export class WorldView {
     col.needsUpdate = true;
   }
 
+  /** Shortest 4-connected route through wall tiles (wires live inside the walls). */
+  private wallRoute(from: [number, number], to: [number, number]): [number, number][] {
+    const g = this.game.grid;
+    const inWall = (x: number, y: number) => {
+      const c = g.at(x, y);
+      return c === '#' || c === 'W' || c === 'D';
+    };
+    const key = (x: number, y: number) => y * g.w + x;
+    const prev = new Map<number, number>();
+    const q: [number, number][] = [from];
+    prev.set(key(from[0], from[1]), -1);
+    while (q.length) {
+      const [x, y] = q.shift()!;
+      if (x === to[0] && y === to[1]) break;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= g.w || ny >= g.h || !inWall(nx, ny) || prev.has(key(nx, ny))) continue;
+        prev.set(key(nx, ny), key(x, y));
+        q.push([nx, ny]);
+      }
+    }
+    if (!prev.has(key(to[0], to[1]))) return [from, to];
+    const out: [number, number][] = [];
+    let k = key(to[0], to[1]);
+    while (k !== -1) {
+      out.push([k % g.w, Math.floor(k / g.w)]);
+      k = prev.get(k)!;
+    }
+    return out.reverse();
+  }
+
+  /** The wall tile closest to a floor tile (where a ceiling lamp's feed leaves the wall). */
+  private nearestWall(t: [number, number]): [number, number] {
+    const g = this.game.grid;
+    let best: [number, number] = t;
+    let bd = Infinity;
+    for (let y = 0; y < g.h; y++)
+      for (let x = 0; x < g.w; x++) {
+        if (g.at(x, y) !== '#') continue;
+        const d = Math.hypot(x - t[0], y - t[1]);
+        if (d < bd) {
+          bd = d;
+          best = [x, y];
+        }
+      }
+    return best;
+  }
+
   private buildScanner() {
-    const dotGeo = new THREE.SphereGeometry(0.075, 8, 6);
+    const dotGeo = new THREE.SphereGeometry(0.07, 8, 6);
+    const circuitIdx = new Map(this.level.circuits.map((c, i) => [c.id, i]));
     for (const d of this.level.devices) {
       const circuit = this.level.circuits.find((c) => c.parts.some((p) => p.id === d.part));
       if (!circuit) continue;
       const panel = this.level.panels.find((p) => p.id === circuit.panel);
       if (!panel) continue;
+      // conduit height inside the wall, staggered per circuit so parallel feeds don't overlap
+      const H = 0.32 + (circuitIdx.get(circuit.id)! % 4) * 0.13;
       const pn = this.wallNormal(panel.tile, panel.front);
-      const p0 = tileCenter(panel.tile[0], panel.tile[1], 1.35).addScaledVector(pn, 0.5);
+      const p0 = tileCenter(panel.tile[0], panel.tile[1], 1.35).addScaledVector(pn, 0.45);
+      let endTile: [number, number];
       let end: THREE.Vector3;
-      if (d.kind === 'lamp') end = tileCenter(d.tile[0], d.tile[1], d.style === 'display' ? 1.1 : 2.6);
-      else if (d.kind === 'camera' || d.kind === 'alarm') end = tileCenter(d.tile[0], d.tile[1], 2.3).addScaledVector(this.wallNormal(d.tile), 0.5);
-      else if (d.kind === 'laser') end = tileCenter(d.from[0], d.from[1], 0.6);
-      else if (d.kind === 'door') end = tileCenter(d.tiles[0][0], d.tiles[0][1], 2.3);
-      else if (d.kind === 'window') end = tileCenter(d.tile[0], d.tile[1], 2.1);
-      else end = tileCenter(d.tiles[0][0], d.tiles[0][1], 0.2);
-      const H = 2.45;
-      const pts = [p0, p0.clone().setY(H), new THREE.Vector3(end.x, H, p0.z), new THREE.Vector3(end.x, H, end.z), end];
+      let viaCeiling = false;
+      if (d.kind === 'lamp') {
+        const wallLamp = this.game.grid.at(d.tile[0], d.tile[1]) === '#';
+        endTile = wallLamp ? d.tile : this.nearestWall(d.tile);
+        end = tileCenter(d.tile[0], d.tile[1], d.style === 'display' ? 1.1 : d.style === 'wall' ? 2.0 : 2.6);
+        viaCeiling = !wallLamp;
+      } else if (d.kind === 'camera' || d.kind === 'alarm') {
+        endTile = d.tile;
+        end = tileCenter(d.tile[0], d.tile[1], 2.3).addScaledVector(this.wallNormal(d.tile), 0.5);
+      } else if (d.kind === 'laser') {
+        endTile = d.from;
+        end = tileCenter(d.from[0], d.from[1], 0.6);
+      } else if (d.kind === 'door') {
+        endTile = d.tiles[0];
+        end = tileCenter(d.tiles[0][0], d.tiles[0][1], 2.3);
+      } else if (d.kind === 'window') {
+        endTile = d.tile;
+        end = tileCenter(d.tile[0], d.tile[1], 2.1);
+      } else {
+        endTile = this.nearestWall(d.tiles[0]);
+        end = tileCenter(d.tiles[0][0], d.tiles[0][1], 0.15);
+        viaCeiling = false;
+      }
+      const route = this.wallRoute(panel.tile, endTile);
+      const pts: THREE.Vector3[] = [p0, tileCenter(panel.tile[0], panel.tile[1], H)];
+      for (const [x, y] of route.slice(1)) pts.push(tileCenter(x, y, H));
+      const last = pts[pts.length - 1];
+      if (viaCeiling) {
+        pts.push(last.clone().setY(2.55));
+        pts.push(end.clone().setY(2.55));
+      } else pts.push(last.clone().setY(end.y));
+      pts.push(end);
+      // drop collinear points
+      const simple: THREE.Vector3[] = [pts[0]];
+      for (let i = 1; i < pts.length - 1; i++) {
+        const a = simple[simple.length - 1];
+        const b = pts[i];
+        const c = pts[i + 1];
+        const ab = b.clone().sub(a).normalize();
+        const bc = c.clone().sub(b).normalize();
+        if (ab.dot(bc) < 0.999) simple.push(b);
+      }
+      simple.push(pts[pts.length - 1]);
       const path = new THREE.CurvePath<THREE.Vector3>();
-      for (let i = 0; i < pts.length - 1; i++) if (pts[i].distanceTo(pts[i + 1]) > 0.01) path.add(new THREE.LineCurve3(pts[i], pts[i + 1]));
+      for (let i = 0; i < simple.length - 1; i++) if (simple[i].distanceTo(simple[i + 1]) > 0.01) path.add(new THREE.LineCurve3(simple[i], simple[i + 1]));
       const length = path.getLength();
       const tubeMat = new THREE.MeshBasicMaterial({ color: circuit.color, transparent: true, opacity: 0.85 });
       const segs: THREE.Mesh[] = [];
       for (const c of path.curves) {
-        const tube = new THREE.Mesh(new THREE.TubeGeometry(c as THREE.LineCurve3, 1, 0.045, 6), tubeMat);
+        const lc = c as THREE.LineCurve3;
+        const tube = new THREE.Mesh(new THREE.TubeGeometry(lc, 1, 0.035, 6), tubeMat);
+        tube.userData.a = lc.v1.clone();
+        tube.userData.b = lc.v2.clone();
         segs.push(tube);
         this.scannerGroup.add(tube);
       }
-      const n = Math.max(3, Math.floor(length / 0.9));
-      const dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(circuit.color).lerp(new THREE.Color(0xffffff), 0.55) }), n);
+      const n = Math.max(3, Math.floor(length / 0.7));
+      const dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(circuit.color).lerp(new THREE.Color(0xffffff), 0.6) }), n);
       dots.frustumCulled = false;
       this.scannerGroup.add(dots);
-      this.wires.push({ device: d.id, part: d.part, circuit: circuit.id, curve: path, length, dots, phase: 0, tube: segs[0], tubeMat });
+      this.wires.push({ device: d.id, part: d.part, circuit: circuit.id, curve: path, length, dots, phase: 0, tube: segs[0], tubeMat, segs });
     }
     this.scannerGroup.visible = false;
+    // the X-ray wave ring that sweeps out from the thief when the scanner opens
+    this.waveRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.92, 1, 96),
+      new THREE.MeshBasicMaterial({ color: 0x38e8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    this.waveRing.rotation.x = -Math.PI / 2;
+    this.waveRing.position.y = 0.08;
+    this.scene.add(this.waveRing);
   }
 
   // ───────────────────────── camera
 
   private yawFor(i: number) {
     return Math.PI / 4 + (i * Math.PI) / 2;
+  }
+
+  /** Opening flyover: show the exhibit, then the exit, then come back to the thief. */
+  startIntro() {
+    const pts: { pos: THREE.Vector3; hold: number; caption: string }[] = [];
+    for (const e of this.level.exhibits) pts.push({ pos: tileCenter(e.tile[0], e.tile[1]), hold: 1.7, caption: `המטרה: ${e.name}` });
+    pts.push({ pos: tileCenter(this.level.exit[0], this.level.exit[1]), hold: 1.3, caption: 'היציאה' });
+    const t = this.game.state.thief;
+    pts.push({ pos: new THREE.Vector3(t.x, 0, t.y), hold: 0.6, caption: '' });
+    this.intro = { pts, i: 0, t: 0 };
+  }
+
+  get introActive() {
+    return !!this.intro;
+  }
+
+  skipIntro() {
+    this.intro = null;
+    this.labels.hide('intro-cap');
   }
 
   rotate(dir: number) {
@@ -592,14 +722,32 @@ export class WorldView {
 
   private updateCamera(dt: number, snap = false) {
     const t = this.game.state.thief;
-    const k = snap ? 1 : 1 - Math.exp(-dt * 5);
-    this.camTarget.lerp(new THREE.Vector3(t.x, 0, t.y), k);
+    let want3 = new THREE.Vector3(t.x, 0, t.y);
+    let rate = 5;
+    if (this.intro) {
+      const pt = this.intro.pts[this.intro.i];
+      want3 = pt.pos;
+      rate = 3.2;
+      this.intro.t += dt;
+      if (pt.caption) this.labels.set('intro-cap', pt.pos.clone().setY(2.6), `<span>${pt.caption}</span>`, 'intro-cap', this.intro.t > 0.35);
+      else this.labels.hide('intro-cap');
+      if (this.intro.t > pt.hold + 0.6) {
+        this.intro.i++;
+        this.intro.t = 0;
+        if (this.intro.i >= this.intro.pts.length) this.skipIntro();
+      }
+    } else {
+      // lead the camera a little in the direction the thief is moving
+      if (t.moving) want3.add(new THREE.Vector3(Math.cos(t.heading), 0, Math.sin(t.heading)).multiplyScalar(1.2));
+    }
+    const k = snap ? 1 : 1 - Math.exp(-dt * rate);
+    this.camTarget.lerp(want3, k);
     const want = this.yawFor(this.yawIndex);
     this.yaw += angleLerp(this.yaw, want, snap ? 1 : 1 - Math.exp(-dt * 8));
     const aspect = this.camera.aspect || 1.6;
     // push in on the thief when the heist ends (busted or escaped)
     const ended = this.game.state.status !== 'playing';
-    this.endZoom += ((ended ? 0.55 : 1) - this.endZoom) * Math.min(1, dt * 2.5);
+    this.endZoom += ((ended ? 0.55 : this.intro ? 1.25 : 1) - this.endZoom) * Math.min(1, dt * 2.5);
     const dist = 23 * this.zoom * this.endZoom * Math.min(1.6, Math.max(1, 1.2 / aspect));
     const el = 0.92;
     const shake = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
@@ -762,32 +910,91 @@ export class WorldView {
       (gv.fanNear.material as THREE.MeshBasicMaterial).color.setHex(gs.notice > 0.2 ? 0xff4020 : 0xffa000);
       // barks
       const bark = gs.bark === 'fix' ? '🔧' : gs.bark === 'zzz' ? 'Zzz' : gs.bark;
-      this.labels.set(`bark-${gs.id}`, new THREE.Vector3(gs.x, 2.35, gs.y), `<span>${bark}</span>`, `bark ${gs.bark === '!' || gs.bark === '!!' ? 'alert' : ''}`, !!gs.bark);
+      const noticing = gs.notice > 0.03 && gs.mode !== 'busted';
+      if (noticing)
+        this.labels.set(`bark-${gs.id}`, new THREE.Vector3(gs.x, 2.45, gs.y), `<div class="notice ${gs.notice > 0.5 ? 'hot' : ''}" style="--n:${gs.notice.toFixed(3)}"><span>${gs.notice > 0.5 ? '!' : '?'}</span></div>`, 'bark meter', true);
+      else this.labels.set(`bark-${gs.id}`, new THREE.Vector3(gs.x, 2.45, gs.y), `<span>${bark}</span>`, `bark ${gs.bark === '!' || gs.bark === '!!' ? 'alert' : ''} ${gs.bark === 'fix' ? 'fix' : ''}`, !!gs.bark);
     }
 
-    // scanner wires
+    // objective markers, pinned to the screen edge when off-screen
+    const done = game.objectiveDone();
+    for (const e of this.level.exhibits) {
+      const show = !done && !st.stolen[e.id] && st.status === 'playing' && !this.intro;
+      this.labels.set(`obj-${e.id}`, tileCenter(e.tile[0], e.tile[1], 2.1), `<i class="arr"></i><span class="gem">◆</span><b>${e.name}</b>`, 'objmark', show, true);
+    }
+    this.labels.set('obj-exit', tileCenter(this.level.exit[0], this.level.exit[1], 2.1), '<i class="arr"></i><span class="gem">➜</span><b>יציאה</b>', 'objmark exit', done && st.status === 'playing', true);
+
+    // running makes noise: show how far it carries
+    if (st.thief.running && game.running) {
+      this.noiseTimer -= dt;
+      if (this.noiseTimer <= 0) {
+        this.noiseTimer = 0.45;
+        let r = this.noiseRings.find((x) => x.t >= 1);
+        if (!r) {
+          const mesh = new THREE.Mesh(
+            new THREE.RingGeometry(0.9, 1, 48),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
+          );
+          mesh.rotation.x = -Math.PI / 2;
+          this.scene.add(mesh);
+          r = { mesh, t: 1 };
+          this.noiseRings.push(r);
+        }
+        r.t = 0;
+        r.mesh.position.set(st.thief.x, 0.07, st.thief.y);
+      }
+    }
+    for (const r of this.noiseRings) {
+      if (r.t >= 1) {
+        (r.mesh.material as THREE.MeshBasicMaterial).opacity = 0;
+        continue;
+      }
+      r.t = Math.min(1, r.t + dt / 0.7);
+      r.mesh.scale.setScalar(0.3 + r.t * 3.7);
+      (r.mesh.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - r.t);
+    }
+
+    // scanner wires, revealed by an expanding X-ray wave
+    if (scan > 0.02 && this.prevScan <= 0.02) this.waveT = 0;
+    if (scan <= 0.02) this.waveT = -1;
+    this.prevScan = scan;
+    if (this.waveT >= 0) this.waveT += dt;
+    const waveR = this.waveT < 0 ? 0 : opts.reducedMotion ? 999 : this.waveT * 16;
+    const ringMat = this.waveRing.material as THREE.MeshBasicMaterial;
+    ringMat.opacity = this.waveT >= 0 && waveR < 40 ? 0.9 * (1 - waveR / 40) : 0;
+    this.waveRing.position.set(st.thief.x, 0.08, st.thief.y);
+    this.waveRing.scale.setScalar(Math.max(0.01, waveR));
     this.scannerGroup.visible = scan > 0.02;
+    const tp = new THREE.Vector3(st.thief.x, 0, st.thief.y);
+    const flat = (v: THREE.Vector3) => Math.hypot(v.x - tp.x, v.z - tp.z);
     if (this.scannerGroup.visible) {
       const m4 = new THREE.Matrix4();
+      const tmp = new THREE.Vector3();
       for (const w of this.wires) {
         const I = game.current(w.part);
         const live = I > 0.005;
-        w.tubeMat.opacity = (live ? 0.9 : 0.25) * scan;
+        w.tubeMat.opacity = (live ? 0.95 : 0.3) * scan;
+        w.tubeMat.color.setHex(live ? this.level.circuits.find((c) => c.id === w.circuit)!.color : 0x556070);
+        for (const sg of w.segs) {
+          const a = sg.userData.a as THREE.Vector3;
+          const b = sg.userData.b as THREE.Vector3;
+          sg.visible = Math.min(flat(a), flat(b), flat(tmp.copy(a).lerp(b, 0.5))) < waveR;
+        }
         const speed = Math.min(7, 0.6 + Math.sqrt(I) * 2.2);
         if (live && !opts.reducedMotion) w.phase = (w.phase + (speed * dt) / w.length) % 1;
         const n = w.dots.count;
         for (let i = 0; i < n; i++) {
           const u = (i / n + w.phase) % 1;
           const p = w.curve.getPointAt(u);
-          m4.makeScale(live ? 1 : 0.0001, live ? 1 : 0.0001, live ? 1 : 0.0001);
+          const show = live && flat(p) < waveR;
+          m4.makeScale(show ? 1 : 0.0001, show ? 1 : 0.0001, show ? 1 : 0.0001);
           m4.setPosition(p);
           w.dots.setMatrixAt(i, m4);
         }
         w.dots.instanceMatrix.needsUpdate = true;
-        const dev = this.level.devices.find((d) => d.id === w.device)!;
         const tagPos = w.curve.getPointAt(1).clone().add(new THREE.Vector3(0, 0.35, 0));
-        void dev;
-        this.labels.set(`amp-${w.device}`, tagPos, `<bdi dir="ltr">${I < 0.005 ? '0 A' : I >= 100 ? '>99 A' : I.toFixed(I < 1 ? 2 : 1) + ' A'}</bdi>`, `amp ${live ? '' : 'dead'}`, scan > 0.5);
+        const revealed = flat(tagPos) < waveR;
+        this.labels.set(`amp-${w.device}`, tagPos, `<bdi dir="ltr">${I < 0.005 ? '0 A' : I >= 100 ? '>99 A' : I.toFixed(I < 1 ? 2 : 1) + ' A'}</bdi>`, `amp ${live ? '' : 'dead'}`, scan > 0.5 && revealed);
       }
     } else for (const w of this.wires) this.labels.hide(`amp-${w.device}`);
 

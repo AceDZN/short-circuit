@@ -107,19 +107,20 @@ export class Particles {
 /** DOM labels that follow 3D points. */
 export class Labels {
   private layer: HTMLElement;
-  private items = new Map<string, { el: HTMLElement; pos: THREE.Vector3; visible: boolean }>();
+  private items = new Map<string, { el: HTMLElement; pos: THREE.Vector3; visible: boolean; clamp: boolean }>();
   private v = new THREE.Vector3();
   constructor(layer: HTMLElement) {
     this.layer = layer;
   }
-  set(key: string, pos: THREE.Vector3, html: string, cls: string, visible = true) {
+  set(key: string, pos: THREE.Vector3, html: string, cls: string, visible = true, clamp = false) {
     let it = this.items.get(key);
     if (!it) {
       const el = document.createElement('div');
       this.layer.appendChild(el);
-      it = { el, pos: pos.clone(), visible };
+      it = { el, pos: pos.clone(), visible, clamp };
       this.items.set(key, it);
     }
+    it.clamp = clamp;
     it.pos.copy(pos);
     if (it.el.className !== cls) it.el.className = cls;
     if (it.el.innerHTML !== html) it.el.innerHTML = html;
@@ -140,12 +141,34 @@ export class Labels {
         continue;
       }
       this.v.copy(it.pos).project(camera);
-      if (this.v.z > 1) {
+      if (this.v.z > 1 && !it.clamp) {
         it.el.style.display = 'none';
         continue;
       }
       it.el.style.display = '';
-      it.el.style.transform = `translate(-50%, -100%) translate(${((this.v.x + 1) / 2) * w}px, ${((1 - this.v.y) / 2) * h}px)`;
+      let x = ((this.v.x + 1) / 2) * w;
+      let y = ((1 - this.v.y) / 2) * h;
+      if (it.clamp) {
+        // pin off-screen targets to the screen edge with an arrow pointing at them
+        const m = 56;
+        const off = x < m || x > w - m || y < m + 40 || y > h - m - 90 || this.v.z > 1;
+        it.el.classList.toggle('edge', off);
+        if (off) {
+          const cx = w / 2;
+          const cy = h / 2;
+          let dx = x - cx;
+          let dy = y - cy;
+          if (this.v.z > 1) {
+            dx = -dx;
+            dy = -dy;
+          }
+          const k = Math.min((w / 2 - m) / Math.max(1e-3, Math.abs(dx)), (h / 2 - m - 70) / Math.max(1e-3, Math.abs(dy)));
+          x = cx + dx * k;
+          y = cy + dy * k;
+          it.el.style.setProperty('--ang', `${Math.atan2(dy, dx)}rad`);
+        }
+      }
+      it.el.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px)`;
     }
   }
 }
