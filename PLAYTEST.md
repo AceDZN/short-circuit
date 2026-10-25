@@ -47,6 +47,31 @@ Added and checked in the built-in browser and in GPU-headless Chromium:
 - Fair checkpoint retries (wiring kept, guards back at their posts), close calls, live star goals, animated results with a rank, adaptive music and effects, touch joystick, pause settings, IBL lighting, vignette/grain, adaptive resolution.
 - Frame rate after the round: 111–120 fps in heists 1–4 and steady 120 fps in heists 5–6 during play (`scripts/fps.mjs`, M2 Max, 1600×900, DPR 1); the zoomed-out intro is the heaviest view.
 - 75 automated tests pass, including new ones for guard search and checkpoint fairness.
+- Locomotion is stride-matched (clip speed follows ground speed, measured from the Tripo foot bones), so feet don't slide.
+
+## Independent game-feel / UX critique (AI critic, GPU headless, real input)
+
+The critic played the live build at 1440×900 and 390×844. It found 18 issues; all were addressed:
+
+| Finding | Fix |
+|---|---|
+| Vision cones showed a 7-tile reach even in the dark | The far cone now stops at the last lit floor (it only ever overestimates); the near flashlight cone is unchanged; moonlight dimmed so "lit" reads clearly. |
+| Heist 1 checkpoint restored a doomed state | Checkpoint retries keep your wiring but send guards back to their posts, plus a 2.5 s grace period. Regression test. |
+| Fail text blamed the player for the wrong thing | The text comes from what happened (the guard's task, a repair that just turned the camera back on), and the matching hint shows on the fail card. |
+| Rewiring consequences invisible while the panel is open | The security-cam inset swings to the device that changed; doors animate while paused; feed lines for a melted fuse ("6.0A > 4A" + flash) and "the guard heard you". |
+| No hint inside panels | 💡 button and H inside the panel; heist 1 (tutorial) shows its panel hint automatically. |
+| First 30 s lacked a next step; clock ran while reading | Heist 1 step guide (1/5…5/5) with an on-map "כאן" marker; the clock waits for the first move; camera zoomed out ~13 %. |
+| Guard's repair race invisible | HUD chip: guard coming to check → walking to the panel → repairing. |
+| Panel far from the mockup | Darker steel board, colour frames per circuit, stronger selection glow, device cards. |
+| Ohm's law needed a gauge | Analogue ammeter on motors: green "enough" band, red "fuse" band, live needle. |
+| Text piled up in the panel | Toasts go into the feed (or to the bottom) while a panel is open, and never block clicks. |
+| Insulator looked like a conductor | Insulators are grey and labelled "מבודד · 0 A"; slots turn green only when current flows. |
+| Light chip false alarm | Three states: בצל / מואר / באור — רואים אתכם (lit and actually in someone's range and sight). |
+| Two identical retry buttons | One button when there's no checkpoint; the ghost star is per attempt. |
+| E closed a panel just opened by click | 350 ms debounce. |
+| Mobile | Touch wording, objective hidden in panels, larger pick targets. |
+| Title lock covered names; Hebrew grammar | Corner lock badge; definite item names ("כפפת הגומי"); "!!" shown as ❗. |
+| Flat steal moment | Hit-stop, camera punch-in, the exhibit arcs into the backpack, a dashed green route to the exit. |
 
 ## Known limits
 

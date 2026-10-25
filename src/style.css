@@ -60,7 +60,7 @@ kbd { background: #1a1d33; border: 1px solid #3a4170; border-radius: 5px; paddin
 .act-btn { width: 64px; height: 64px; border-radius: 50%; background: var(--panel); border: 2px solid var(--yellow); color: var(--yellow); font-size: 24px; font-weight: 800; display: none; }
 .prompt { position: absolute; bottom: 128px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1.5px solid var(--yellow); border-radius: 12px; padding: 8px 16px; font-size: 18px; font-weight: 700; white-space: nowrap; }
 .prompt kbd { background: var(--yellow); color: #111; border: 0; font-weight: 800; }
-.toast { position: absolute; top: 168px; left: 50%; transform: translateX(-50%); width: min(560px, 86vw); background: rgba(8, 10, 24, 0.92); border: 1.5px solid var(--yellow); border-radius: 14px; padding: 12px 18px; font-size: 18px; line-height: 1.45; text-align: center; pointer-events: auto; }
+.toast { position: absolute; top: 168px; left: 50%; transform: translateX(-50%); width: min(560px, 86vw); background: rgba(8, 10, 24, 0.92); border: 1.5px solid var(--yellow); border-radius: 14px; padding: 12px 18px; font-size: 18px; line-height: 1.45; text-align: center; pointer-events: none; }
 .toast.concept { border-color: var(--cyan); }
 
 /* Panel UI */
@@ -269,3 +269,4 @@ body.in-panel .hud-tr .goals, body.in-panel .step-line { display: none; }
 /* title lock: a small corner badge instead of covering the name */
 .level-card .lock { inset: auto; top: 6px; left: 6px; width: 28px; height: 28px; font-size: 16px; border-radius: 8px; background: rgba(3, 3, 10, 0.75); }
 .pv-slot.dead { color: #a0a6b8; border-color: #6a7080; }
+body.in-panel .toast { top: auto; bottom: 120px; }
