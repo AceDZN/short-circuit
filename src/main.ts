@@ -1083,6 +1083,27 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+/** Adaptive resolution: weaker devices drop render resolution step by step instead of stuttering. */
+const maxDpr = Math.min(2, window.devicePixelRatio || 1);
+let dpr = maxDpr;
+let slowSecs = 0;
+let fastSecs = 0;
+function adaptResolution() {
+  if (document.hidden || screen !== 'play') return;
+  slowSecs = fps < 45 ? slowSecs + 1 : 0;
+  fastSecs = fps > 57 ? fastSecs + 1 : 0;
+  let next = dpr;
+  if (slowSecs >= 2 && dpr > 0.75) next = Math.max(0.75, dpr - 0.25);
+  if (fastSecs >= 6 && dpr < maxDpr) next = Math.min(maxDpr, dpr + 0.25);
+  if (next !== dpr) {
+    dpr = next;
+    slowSecs = fastSecs = 0;
+    renderer.setPixelRatio(dpr);
+    composer.setPixelRatio(dpr);
+    resize();
+  }
+}
+
 let last = performance.now();
 let fpsAcc = 0;
 let fpsN = 0;
@@ -1176,6 +1197,7 @@ function frame(now: number) {
     fps = Math.round(fpsN / fpsAcc);
     fpsAcc = 0;
     fpsN = 0;
+    adaptResolution();
   }
   requestAnimationFrame(frame);
 }
@@ -1190,7 +1212,7 @@ declare global {
   }
 }
 window.render_game_to_text = () =>
-  JSON.stringify({ screen, scanner: scan > 0.5, fps, hintAvailable: hintAvailable?.id ?? null, ...game.toText() });
+  JSON.stringify({ screen, scanner: scan > 0.5, fps, dpr, hintAvailable: hintAvailable?.id ?? null, ...game.toText() });
 window.advanceTime = (ms: number) => {
   externalClock = true;
   const steps = Math.max(1, Math.round(ms / (1000 / 60)));
@@ -1207,6 +1229,9 @@ window.__sc = {
   },
   get world() {
     return world;
+  },
+  get renderInfo() {
+    return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
   },
   interact,
   closePanel,
