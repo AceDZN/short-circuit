@@ -332,7 +332,9 @@ export class PanelView {
       this.addFlow(p.id, new THREE.LineCurve3(from.clone().setZ(0.016), to.clone().setZ(0.016)), c.color, mat);
     }
     // labels: loads and sources always; wires only when cut or selected
-    if (!isWire || ps.open || sel || this.meter) {
+    // generic sensors carry their branch's current; their label would only crowd a dense board
+    const quiet = isWire || (p.kind === 'sensor' && p.label === 'חיישן');
+    if (!quiet || ps.open || sel || this.meter) {
       const r = this.game.partResult(p.id);
       const amps = Math.abs(r.current);
       const ampTxt = amps < 0.005 ? '0 A' : amps >= 100 ? '>99 A' : `${amps.toFixed(amps < 1 ? 2 : 1)} A`;
