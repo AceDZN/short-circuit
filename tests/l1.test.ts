@@ -73,4 +73,16 @@ describe('heist 1 — lobby (open/closed circuit, conductor/insulator)', () => {
     expect(b.guard('g1').task?.kind).toBe('noise');
     expect(b.guard('g1').task?.point).toEqual(b.guard('g1').lastSeen);
   });
+
+  it('retrying from the checkpoint keeps your wiring but sends guards back to their posts', () => {
+    const b = new Bot(L1);
+    cutBoth(b);
+    b.route([15, 8], [17, 8]); // checkpoint in the corridor
+    expect(b.g.hasCheckpoint()).toBe(true);
+    b.g.failWith('caught');
+    b.g.retry(false);
+    expect(b.s.parts.c1_w.open).toBe(true);
+    expect(b.guard('g1').mode).toBe('patrol');
+    expect(b.guard('g1').task).toBe(null);
+  });
 });

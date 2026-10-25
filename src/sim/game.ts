@@ -209,6 +209,15 @@ export class Game {
     this.state = JSON.parse(snap);
     this.state.stats = stats;
     this.state.panelOpen = null;
+    if (!fromStart && this.snapCheckpoint) {
+      // A fair second chance: your wiring stays as it was, but guards go back to their posts
+      // instead of resuming a half-finished trip to undo it.
+      for (const g of this.state.guards) {
+        const r = this.level.guards.find((x) => x.id === g.id)!.route[0];
+        Object.assign(g, { x: r.x + 0.5, y: r.y + 0.5, heading: r.face ?? 0, routeIdx: 0, wait: r.wait ?? 0, mode: 'patrol', timer: 0, path: [], task: null, bark: '', barkTimer: 0, notice: 0, moving: false, lastSeen: undefined, say: '', sayT: 0 });
+      }
+      this.state.camMeter = {};
+    }
     this.moveIntent = { x: 0, y: 0, run: false };
     this.refresh(true);
     this.syncOpenings();
