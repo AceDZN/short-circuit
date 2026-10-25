@@ -110,6 +110,7 @@ let pendingInteract: string | null = null;
 let meterMode = false;
 let introWasActive = true;
 let hitStop = 0;
+const introSeen = new Set<number>();
 const keys = new Set<string>();
 const labelsEl = $('labels');
 const pvLabelsEl = $('pvlabels');
@@ -202,7 +203,8 @@ function startPlay() {
   sfx.unlock();
   setScreen('play');
   updateBag(true);
-  if (!externalClock && !params.has('nointro')) {
+  if (!externalClock && !params.has('nointro') && !introSeen.has(levelIdx)) {
+    introSeen.add(levelIdx);
     world.startIntro();
     sfx.whoosh();
   }
