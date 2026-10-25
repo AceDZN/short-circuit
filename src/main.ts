@@ -277,6 +277,10 @@ function updateHud() {
   const missing = game.level.exhibits.filter((e) => e.required !== false && !st.stolen[e.id]).map((e) => e.name);
   $('objText').textContent = done ? 'ברחו ליציאה!' : `גנבו את ${missing.join(' ו')} וצאו`;
   $('objective').classList.toggle('done', done);
+  const ghost = st.stats.spottedPeaks === 0 && st.stats.fails === 0;
+  const left = game.level.parSeconds - st.time;
+  const goalsHtml = `<span class="g ${done ? 'ok' : ''}">★ מוצג</span><span class="g ${ghost ? 'ok' : 'lost'}">★ 👻</span><span class="g ${left >= 0 ? 'ok' : 'lost'}">★ <bdi dir="ltr">${left >= 0 ? fmtTime(left) : '0:00'}</bdi></span>`;
+  if ($('goals').innerHTML !== goalsHtml) $('goals').innerHTML = goalsHtml;
   const tgt = screen === 'play' && !st.panelOpen ? game.interactTarget() : null;
   const pr = $('prompt');
   if (tgt) {
