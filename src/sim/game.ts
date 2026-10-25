@@ -87,6 +87,10 @@ export interface GameState {
   stats: Stats;
   lastNoise: number;
   peakNotice: number;
+  /** Seconds after a checkpoint restore during which nobody can spot you. */
+  grace?: number;
+  /** Time of the last guard repair (to explain what happened on a failure). */
+  lastRepair?: { t: number; panel: string };
 }
 
 export interface DeviceView {
@@ -217,7 +221,10 @@ export class Game {
         Object.assign(g, { x: r.x + 0.5, y: r.y + 0.5, heading: r.face ?? 0, routeIdx: 0, wait: r.wait ?? 0, mode: 'patrol', timer: 0, path: [], task: null, bark: '', barkTimer: 0, notice: 0, moving: false, lastSeen: undefined, say: '', sayT: 0 });
       }
       this.state.camMeter = {};
+      this.state.grace = 2.5;
     }
+    // a fresh attempt: the ghost star is about this run, not the ones that failed
+    this.state.stats.spottedPeaks = 0;
     this.moveIntent = { x: 0, y: 0, run: false };
     this.refresh(true);
     this.syncOpenings();
@@ -522,6 +529,7 @@ export class Game {
     if (!this.running) return;
     const s = this.state;
     s.time += dt;
+    if (s.grace) s.grace = Math.max(0, s.grace - dt);
     this.updateThief(dt);
     this.updateDoors(dt);
     this.updateZones();
@@ -798,6 +806,14 @@ export class Game {
     return (lit ? 1.6 : 1.0) * (0.45 + near) * (t.running ? 1.4 : 1);
   }
 
+  /** Could anyone actually spot the thief here (lit and in someone's range and line of sight)? */
+  exposure(): 'dark' | 'lit' | 'exposed' {
+    const t = this.state.thief;
+    if (!this.isLit(t.x, t.y)) return 'dark';
+    for (const g of this.state.guards) if (Math.hypot(g.x - t.x, g.y - t.y) <= GUARD_RANGE_LIT && this.grid.los(g.x, g.y, t.x, t.y)) return 'exposed';
+    return 'lit';
+  }
+
   guardRange(g: GuardState) {
     void g;
     return { lit: GUARD_RANGE_LIT, dark: GUARD_RANGE_DARK, fov: GUARD_FOV };
@@ -806,7 +822,7 @@ export class Game {
   private updateGuard(g: GuardState, dt: number) {
     if (g.mode === 'busted' || this.state.status !== 'playing') return;
     const t = this.state.thief;
-    const rate = this.sightRate(g);
+    const rate = (this.state.grace ?? 0) > 0 ? 0 : this.sightRate(g);
     // Suspicion ("?") builds slowly so you can react; confirmation ("!") is quick.
     if (rate > 0) g.notice = Math.min(1, g.notice + rate * dt * (g.notice < 0.5 ? 0.6 : 1.2));
     else g.notice = Math.max(0, g.notice - dt * 0.4);
@@ -1004,6 +1020,7 @@ export class Game {
     const removedItems = s.placed.length - keep.length;
     s.placed = keep;
     this.emit({ type: 'repair', id: panelId, text: fused ? 'fuse' : removedItems ? 'items' : 'wires' });
+    s.lastRepair = { t: s.time, panel: panelId };
     this.addLog('guardRepair', panelId);
     this.refresh();
   }
@@ -1033,7 +1050,7 @@ export class Game {
     for (const d of this.level.devices) {
       if (d.kind !== 'camera') continue;
       const m = s.camMeter[d.id] ?? 0;
-      s.camMeter[d.id] = this.cameraSees(d.id) ? m + dt / 0.5 : Math.max(0, m - dt);
+      s.camMeter[d.id] = this.cameraSees(d.id) && !s.grace ? m + dt / 0.5 : Math.max(0, m - dt);
       if (s.camMeter[d.id] >= 1) return this.failWith('camera', d.id);
     }
   }

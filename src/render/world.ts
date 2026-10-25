@@ -70,6 +70,14 @@ export class WorldView {
   private yaw = Math.PI / 4;
   private zoom = 1;
   private endZoom = 1;
+  private doorVis: Record<string, number> = {};
+  /** Camera for the panel's security-cam inset; it looks at whatever just changed. */
+  readonly insetCam = new THREE.PerspectiveCamera(30, 1.6, 0.1, 200);
+  private insetFocus = new THREE.Vector3();
+  private insetWant: THREE.Vector3 | null = null;
+  private punch = 0;
+  private exitLine: THREE.Line | null = null;
+  private exitLineT = 0;
   private attract = false;
   overview = false;
   private routes = new THREE.Group();
@@ -171,6 +179,7 @@ export class WorldView {
     this.applyWallHeights();
     const t = game.state.thief;
     this.camTarget.set(t.x, 0, t.y);
+    this.insetFocus.set(t.x, 0, t.y);
     this.updateCamera(0, true);
     // Swap in generated models for static props when available.
     this.upgradeProps();
@@ -180,7 +189,7 @@ export class WorldView {
     return this.level.theme === 'courtyard' ? 0.75 : 0.55;
   }
   private baseMoon() {
-    return this.level.theme === 'courtyard' ? 0.8 : 0.35;
+    return this.level.theme === 'courtyard' ? 0.65 : 0.22;
   }
 
   // ───────────────────────── build
@@ -526,7 +535,7 @@ export class WorldView {
     return mesh;
   }
 
-  private updateFan(fan: THREE.Mesh, x: number, y: number, heading: number, half: number, range: number, height = 0.05) {
+  private updateFan(fan: THREE.Mesh, x: number, y: number, heading: number, half: number, range: number, height = 0.05, litOnlyBeyond = 0) {
     const g = this.game.grid;
     const n = fan.userData.n as number;
     const pos = fan.geometry.attributes.position as THREE.BufferAttribute;
@@ -539,12 +548,16 @@ export class WorldView {
       const dx = Math.cos(a);
       const dy = Math.sin(a);
       let r = 0.2;
+      let reach = 0.2;
       while (r < range) {
         const tx = Math.floor(x + dx * r);
         const ty = Math.floor(y + dy * r);
         if ((tx !== Math.floor(x) || ty !== Math.floor(y)) && g.blocksSight(tx, ty)) break;
+        // beyond flashlight range he only sees lit floor: the cone stops at the last lit spot
+        if (!litOnlyBeyond || r <= litOnlyBeyond || this.game.isLit(x + dx * r, y + dy * r)) reach = r;
         r += 0.1;
       }
+      if (litOnlyBeyond) r = Math.max(Math.min(reach, r), Math.min(r, litOnlyBeyond));
       pos.setXYZ(i + 1, x + dx * r, height, y + dy * r);
       col.setXYZ(i + 1, 0.55, 0.55, 0.55);
     }
@@ -792,8 +805,9 @@ export class WorldView {
     const aspect = this.camera.aspect || 1.6;
     // push in on the thief when the heist ends (busted or escaped)
     const ended = this.game.state.status !== 'playing';
-    this.endZoom += ((ended ? 0.55 : this.overview ? Math.max(this.game.grid.w, this.game.grid.h) / 13 : this.attract ? 1.45 : this.intro ? 1.25 : 1) - this.endZoom) * Math.min(1, dt * (this.overview ? 6 : 2.5));
-    const dist = 23 * this.zoom * this.endZoom * Math.min(1.6, Math.max(1, 1.2 / aspect));
+    this.punch = Math.max(0, this.punch - dt);
+    this.endZoom += ((ended ? 0.55 : this.punch > 0 ? 0.78 : this.overview ? Math.max(this.game.grid.w, this.game.grid.h) / 13 : this.attract ? 1.45 : this.intro ? 1.25 : 1) - this.endZoom) * Math.min(1, dt * (this.overview ? 6 : 2.5));
+    const dist = 26 * this.zoom * this.endZoom * Math.min(1.6, Math.max(1, 1.2 / aspect));
     const el = 0.92;
     const shake = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     this.camera.position.set(
@@ -803,6 +817,27 @@ export class WorldView {
     );
     this.camera.lookAt(this.camTarget.x, 0.6, this.camTarget.z);
     this.shake = Math.max(0, this.shake - dt * 1.5);
+  }
+
+  /** Point the security-cam inset at a device (or back at the thief with null). */
+  focusInset(deviceId: string | null) {
+    const d = deviceId ? this.level.devices.find((x) => x.id === deviceId) : null;
+    if (!d) {
+      this.insetWant = null;
+      return;
+    }
+    const t = 'tile' in d ? d.tile : d.kind === 'laser' ? d.from : d.tiles[0];
+    this.insetWant = tileCenter(t[0], t[1]);
+  }
+
+  private updateInset(dt: number) {
+    const st = this.game.state;
+    const want = this.insetWant ?? new THREE.Vector3(st.thief.x, 0, st.thief.y);
+    this.insetFocus.lerp(want, Math.min(1, dt * 4));
+    const dist = 15;
+    const el = 0.92;
+    this.insetCam.position.set(this.insetFocus.x + Math.sin(this.yaw) * Math.cos(el) * dist, Math.sin(el) * dist, this.insetFocus.z + Math.cos(this.yaw) * Math.cos(el) * dist);
+    this.insetCam.lookAt(this.insetFocus.x, 0.5, this.insetFocus.z);
   }
 
   bump(amount: number) {
@@ -867,7 +902,12 @@ export class WorldView {
     // doors
     for (const [id, list] of this.doors) {
       const dv = game.devices.get(id)!;
-      const open = st.doorOpen[id] ?? 0;
+      // animate toward the motor's state even while the world is paused in a panel
+      const simOpen = st.doorOpen[id] ?? 0;
+      const vis = (this.doorVis[id] ??= simOpen);
+      const target = game.running ? simOpen : dv.on ? 1 : simOpen;
+      this.doorVis[id] = vis + Math.sign(target - vis) * Math.min(Math.abs(target - vis), dt * (game.running ? 6 : 0.9));
+      const open = this.doorVis[id];
       for (const d of list) {
         d.slab.position.y = 1.25 + open * 2.3;
         d.slab.position.x = dv.strain && !opts.reducedMotion ? Math.sin(this.time * 60) * 0.02 : 0;
@@ -970,14 +1010,14 @@ export class WorldView {
       gv.actor.setPose(gp);
       gv.actor.update(game.running || st.status !== 'playing' ? dt : 0, gSpeed);
       const r = game.guardRange(gs);
-      this.updateFan(gv.fanFar, gs.x, gs.y, gs.heading, r.fov, r.lit, 0.04);
+      this.updateFan(gv.fanFar, gs.x, gs.y, gs.heading, r.fov, r.lit, 0.04, r.dark);
       this.updateFan(gv.fanNear, gs.x, gs.y, gs.heading, r.fov, r.dark, 0.05);
       (gv.fanNear.material as THREE.MeshBasicMaterial).opacity = 0.42 + gs.notice * 0.35;
       (gv.fanNear.material as THREE.MeshBasicMaterial).color.setHex(gs.notice > 0.2 ? 0xff4020 : 0xffa000);
       // speech bubble
       this.labels.set(`say-${gs.id}`, new THREE.Vector3(gs.x, 3.05, gs.y), `<span>${gs.say ?? ''}</span>`, 'say', !!gs.say && st.status === 'playing' && !this.intro);
       // barks
-      const bark = gs.bark === 'fix' ? '🔧' : gs.bark === 'zzz' ? 'Zzz' : gs.bark;
+      const bark = gs.bark === 'fix' ? '🔧' : gs.bark === 'zzz' ? 'Zzz' : gs.bark === '!!' ? '❗' : gs.bark;
       const noticing = gs.notice > 0.03 && gs.mode !== 'busted';
       if (noticing)
         this.labels.set(`bark-${gs.id}`, new THREE.Vector3(gs.x, 2.45, gs.y), `<div class="notice ${gs.notice > 0.5 ? 'hot' : ''}" style="--n:${gs.notice.toFixed(3)}"><span>${gs.notice > 0.5 ? '!' : '?'}</span></div>`, 'bark meter', true);
@@ -1068,6 +1108,15 @@ export class WorldView {
     } else for (const w of this.wires) this.labels.hide(`amp-${w.device}`);
 
     this.fx.update(dt);
+    this.updateInset(dt);
+    if (this.exitLine) {
+      this.exitLineT -= dt;
+      (this.exitLine.material as THREE.LineDashedMaterial).opacity = Math.max(0, Math.min(1, this.exitLineT));
+      if (this.exitLineT <= 0) {
+        this.scene.remove(this.exitLine);
+        this.exitLine = null;
+      }
+    }
     this.updateCamera(dt);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -1086,6 +1135,16 @@ export class WorldView {
         this.bump(0.25);
       }
       if (e.type === 'steal') {
+        this.punch = this.reduced ? 0 : 0.7;
+        const t = this.game.state.thief;
+        const path = this.game.grid.path([Math.floor(t.x), Math.floor(t.y)], this.level.exit, (x, y) => this.game.grid.walkable(x, y) || this.game.grid.at(x, y) === 'D' || this.game.grid.at(x, y) === 'W');
+        if (path) {
+          const pts = [new THREE.Vector3(t.x, 0.1, t.y), ...path.map(([x, y]) => tileCenter(x, y, 0.1))];
+          this.exitLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: 0x5dff95, dashSize: 0.35, gapSize: 0.2, transparent: true }));
+          this.exitLine.computeLineDistances();
+          this.exitLineT = 5;
+          this.scene.add(this.exitLine);
+        }
         this.fx.sparks(new THREE.Vector3(e.x!, 1.2, e.y!), 30, 0x8fe8ff);
         const ex = this.level.exhibits.find((x) => x.id === e.id);
         if (ex) {

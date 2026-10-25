@@ -24,6 +24,8 @@
       <div class="hud-tr">
         <div class="objective" id="objective"><span class="flag">⚑</span><span id="objText"></span></div>
         <div class="goals" id="goals"></div>
+        <div class="step-line hidden" id="stepLine"></div>
+        <div class="race-chip hidden" id="raceChip"></div>
         <div class="level-name" id="levelName"></div>
       </div>
       <div class="hud-tools">
@@ -57,6 +59,7 @@
           <div class="pv-bag-items" id="pvBag"></div>
         </div>
         <div class="pv-actions">
+          <button class="pv-btn hint hidden" id="pvHint"><span>💡</span>רמז</button>
           <button class="pv-btn meter" id="pvMeter"><span>⏲</span>מד זרם</button>
           <button class="pv-btn close" id="pvClose"><span>✕</span>סגור</button>
           <button class="pv-btn cut" id="pvCut" disabled><span>✂</span>חתוך</button>
@@ -100,6 +103,7 @@
           <div class="stamp" id="failStamp">נתפסת!</div>
           <div class="fail-line" id="failLine"></div>
           <div class="fail-explain" id="failExplain"></div>
+          <div class="fail-hint hidden" id="failHint"></div>
           <div class="fail-actions">
             <button class="big-btn red" id="btnRetry">↻ נסו שוב</button>
             <button class="big-btn ghost" id="btnRestart">מההתחלה</button>

@@ -109,6 +109,7 @@ let hintsUsedThisLevel = 0;
 let pendingInteract: string | null = null;
 let meterMode = false;
 let introWasActive = true;
+let awaitingMove = true;
 let hitStop = 0;
 let slowMo = 0;
 const introSeen = new Set<number>();
@@ -119,6 +120,18 @@ const hintsShown = new Set<string>();
 let hintAvailable: HintDef | null = null;
 let toastTimer = 0;
 let lastBag = '';
+let stepIdx = 0;
+let scannerUsed = false;
+const panelsOpened = new Set<string>();
+const TUTORIAL: Record<string, { text: string; done: () => boolean; marker?: [number, number] }[]> = {
+  l1: [
+    { text: 'הפעילו את הסורק: החזיקו רווח (או כפתור הסורק)', done: () => scannerUsed },
+    { text: 'גשו ללוח החשמל ליד הכניסה ולחצו E', done: () => panelsOpened.has('p1'), marker: [0, 7] },
+    { text: 'החשיכו את הלובי', done: () => !game.devices.get('lamp_lobby')?.on },
+    { text: 'חצו את הלובי בחושך — אל תיכנסו לקרן הפנס', done: () => game.state.thief.x >= 16.5 },
+    { text: 'פתחו את דלת חדר התצוגה בלוח שליד הדלת', done: () => !!game.devices.get('door1')?.on, marker: [19, 6] },
+  ],
+};
 
 function loadLevel(i: number) {
   levelIdx = i;
@@ -132,6 +145,10 @@ function loadLevel(i: number) {
   renderPass.scene = world.scene;
   renderPass.camera = world.camera;
   hintsShown.clear();
+  stepIdx = 0;
+  scannerUsed = false;
+  panelsOpened.clear();
+  awaitingMove = true;
   introWasActive = true;
   hintAvailable = null;
   hintsUsedThisLevel = 0;
@@ -220,15 +237,25 @@ function maybeAutoHint(when: HintDef['when'], panel?: string) {
   for (const h of L.hints) {
     if (hintsShown.has(h.id) || h.when !== when) continue;
     if (h.panel && h.panel !== panel) continue;
-    // Controls tips show by themselves; science hints wait behind the 💡 button.
-    if (when === 'start' || when === 'nearPanel') {
+    // Controls tips show by themselves; science hints wait behind the 💡 button (heist 1 is the tutorial).
+    if (when === 'start' || when === 'nearPanel' || (L.index === 1 && when === 'inPanel')) {
       hintsShown.add(h.id);
-      showToast(h.text, false);
+      if (when === 'inPanel') {
+        hintsUsedThisLevel++;
+        game.addLog('hint', `${h.id}:tutorial`);
+      }
+      showToast(touchText(h.text), when === 'inPanel');
     } else if (!hintAvailable) {
       hintAvailable = h;
     }
     return;
   }
+}
+
+const isTouch = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+function touchText(t: string) {
+  if (!isTouch) return t;
+  return t.replace('החזיקו רווח (או כפתור הסורק)', 'לחצו על כפתור הסורק').replace('לחצו E', 'לחצו על כפתור E');
 }
 
 function useHint() {
@@ -242,6 +269,7 @@ function useHint() {
 }
 
 function showToast(text: string, concept: boolean, ms = 7000) {
+  if (panelView && !concept) return pushFeed('💬', text, 'info');
   const t = $('toast');
   t.textContent = text;
   t.className = `toast ${concept ? 'concept' : ''}`;
@@ -270,16 +298,36 @@ function updateHud() {
   [...segs.children].forEach((c, i) => c.classList.toggle('on', i < on));
   $('eyeMeter').classList.toggle('hot', notice > 0.5);
   $('timer').innerHTML = `<bdi dir="ltr">${fmtTime(st.time)}</bdi>`;
-  const lit = game.isLit(st.thief.x, st.thief.y);
+  const exp = game.exposure();
   const lc = $('lightState');
-  lc.textContent = lit ? 'באור — רואים אתכם' : 'בצל';
-  lc.classList.toggle('lit', lit);
+  lc.textContent = exp === 'exposed' ? 'באור — רואים אתכם!' : exp === 'lit' ? 'מואר' : 'בצל';
+  lc.classList.toggle('lit', exp === 'exposed');
+  lc.classList.toggle('dim', exp === 'lit');
   const done = game.objectiveDone();
   const missing = game.level.exhibits.filter((e) => e.required !== false && !st.stolen[e.id]).map((e) => e.name);
   $('objText').textContent = done ? 'ברחו ליציאה!' : `גנבו את ${missing.join(' ו')} וצאו`;
   $('objective').classList.toggle('done', done);
-  const ghost = st.stats.spottedPeaks === 0 && st.stats.fails === 0;
+  const ghost = st.stats.spottedPeaks === 0;
   const left = game.level.parSeconds - st.time;
+  // heist 1 walks a new player through the loop, one step at a time
+  const steps = TUTORIAL[game.level.id];
+  if (steps && screen === 'play') {
+    while (stepIdx < steps.length && steps[stepIdx].done()) stepIdx++;
+    const cur = steps[stepIdx];
+    $('stepLine').classList.toggle('hidden', !cur || done);
+    if (cur && !done) {
+      $('stepLine').innerHTML = `<b>${stepIdx + 1}/${steps.length}</b> ${touchText(cur.text)}`;
+      if (cur.marker) world.labels.set('step', new THREE.Vector3(cur.marker[0] + 0.5, 2.3, cur.marker[1] + 0.5), '<i class="arr"></i><span class="gem">⚡</span><b>כאן</b>', 'objmark step', true, true);
+      else world.labels.hide('step');
+    } else world.labels.hide('step');
+  } else {
+    $('stepLine').classList.add('hidden');
+    world.labels.hide('step');
+  }
+  const fixer = st.guards.find((g) => g.task?.panel && (g.mode === 'toPanel' || g.mode === 'repair' || (g.task.kind === 'fuse' && g.mode === 'suspicious')));
+  const chip = $('raceChip');
+  chip.classList.toggle('hidden', !fixer || st.status !== 'playing');
+  if (fixer) chip.innerHTML = fixer.mode === 'repair' ? `🔧 השומר מתקן את ${game.panel(fixer.task!.panel!).label}!` : `🔧 השומר בדרך ל${game.panel(fixer.task!.panel!).label} — עוד מעט הכול יחזור לפעול`;
   const goalsHtml = `<span class="g ${done ? 'ok' : ''}">★ מוצג</span><span class="g ${ghost ? 'ok' : 'lost'}">★ 👻</span><span class="g ${left >= 0 ? 'ok' : 'lost'}">★ <bdi dir="ltr">${left >= 0 ? fmtTime(left) : '0:00'}</bdi></span>`;
   if ($('goals').innerHTML !== goalsHtml) $('goals').innerHTML = goalsHtml;
   const tgt = screen === 'play' && !st.panelOpen ? game.interactTarget() : null;
@@ -293,6 +341,7 @@ function updateHud() {
   $('btnAct').style.visibility = tgt ? 'visible' : 'hidden';
   $('btnScanner').classList.toggle('on', scannerHeld || scannerToggle);
   $('btnHint').classList.toggle('hidden', !hintAvailable || !!game.level.noHints);
+  $('pvHint').classList.toggle('hidden', !hintAvailable || !!game.level.noHints);
   if (st.time > 50 && !hintAvailable && screen === 'play') maybeAutoHint('idle');
   updateBag();
 }
@@ -325,7 +374,10 @@ function updateBag(force = false) {
 
 // ───────────────────────────── panel close-up
 
+let panelOpenedAt = 0;
 function openPanelView(id: string) {
+  panelOpenedAt = performance.now();
+  world.focusInset(null);
   panelView?.dispose();
   panelView = new PanelView(game, id, pvLabelsEl);
   panelView.scene.environment = envTex;
@@ -339,6 +391,7 @@ function openPanelView(id: string) {
   labelsEl.style.display = 'none';
   pvLabelsEl.style.display = '';
   const p = game.panel(id);
+  panelsOpened.add(id);
   hideToast();
   sfx.whoosh();
   $('pvTitle').textContent = p.label;
@@ -366,10 +419,10 @@ function setPanelHelp() {
   if (pv.placingItem) {
     const spec = ITEMS[pv.placingItem];
     t = pv.pendingTerminal
-      ? `עכשיו לחצו על המחבר השני כדי לחבר את ה${spec.name}.`
+      ? `עכשיו לחצו על המחבר השני כדי לחבר את ${spec.def}.`
       : spec.element === 'battery'
-        ? `לחצו על המחבר שיתחבר לקוטב השלילי (−) של ה${spec.name}.`
-        : `לחצו על חריץ מסומן, או גררו מחבר נחושת אל מחבר אחר, כדי לחבר את ה${spec.name}.`;
+        ? `לחצו על המחבר שיתחבר לקוטב השלילי (−) של ${spec.def}.`
+        : `לחצו על חריץ מסומן, או גררו מחבר נחושת אל מחבר אחר, כדי לחבר את ${spec.def}.`;
   }
   $('pvHelp').textContent = t;
 }
@@ -512,7 +565,14 @@ function afterPanelChange() {
     if (e.type === 'fuseBlown' && e.id) {
       pv.sparkAt(e.id);
       pv.sparkAt(e.id);
+      const def = game.level.circuits.flatMap((c) => c.parts).find((p) => p.id === e.id);
+      const I = game.lastBlow?.current ?? 0;
+      pushFeed('💥', `${def?.label ?? 'הנתיך'} נשרף: <bdi dir="ltr">${I >= 100 ? '>99' : I.toFixed(1)}A &gt; ${def?.rating ?? '?'}A</bdi>`, 'bad');
+      document.body.classList.remove('flash');
+      void document.body.offsetWidth;
+      if (!settings.reduced) document.body.classList.add('flash');
     }
+    if (e.type === 'bark' && e.text === '?') pushFeed('👮', 'השומר שמע משהו — הוא בדרך!', 'bad');
   }
   processEvents(evs);
   reportEffects();
@@ -570,8 +630,24 @@ function snapDevices(): Snap {
 function partLabel(partId: string) {
   return game.level.circuits.flatMap((c) => c.parts).find((p) => p.id === partId)?.label ?? '';
 }
+function pushFeed(icon: string, text: string, tone: 'good' | 'bad' | 'info') {
+  const feed = $('pvFeed');
+  const el = document.createElement('div');
+  el.className = `feed ${tone}`;
+  el.innerHTML = `<span>${icon}</span>${text}`;
+  feed.prepend(el);
+  window.setTimeout(() => el.classList.add('out'), 3600);
+  window.setTimeout(() => el.remove(), 4200);
+  while (feed.children.length > 4) feed.lastElementChild!.remove();
+}
+const lastChanged = new Set<string>();
 function reportEffects() {
   const now = snapDevices();
+  lastChanged.clear();
+  for (const [id, b] of now) {
+    const a = lastSnap.get(id);
+    if (a && (a.on !== b.on || a.strain !== b.strain)) lastChanged.add(id);
+  }
   const lines: { icon: string; text: string; tone: 'good' | 'bad' | 'info' }[] = [];
   for (const d of game.level.devices) {
     const a = lastSnap.get(d.id);
@@ -589,16 +665,10 @@ function reportEffects() {
     if (d.kind === 'door' && b.strain && !a.strain) lines.push({ icon: '🚪', text: `${label}: המנוע מזמזם — חסר זרם`, tone: 'bad' });
   }
   lastSnap = now;
-  const feed = $('pvFeed');
-  for (const l of lines) {
-    const el = document.createElement('div');
-    el.className = `feed ${l.tone}`;
-    el.innerHTML = `<span>${l.icon}</span>${l.text}`;
-    feed.prepend(el);
-    window.setTimeout(() => el.classList.add('out'), 3600);
-    window.setTimeout(() => el.remove(), 4200);
-  }
-  while (feed.children.length > 4) feed.lastElementChild!.remove();
+  // the security-cam inset swings to whatever just changed
+  const changed = game.level.devices.find((d) => lastChanged.has(d.id));
+  if (changed) world.focusInset(changed.id);
+  for (const l of lines) pushFeed(l.icon, l.text, l.tone);
 }
 
 // ───────────────────────────── events → sound, fx, screens
@@ -702,8 +772,26 @@ function showFail(reason: FailReason) {
     const def = game.level.circuits.flatMap((c) => c.parts).find((p) => p.id === blow.part);
     if (def?.rating) explain += ` הנתיך (${def.rating}A) נשרף כשהזרם בו הגיע ל-${blow.current >= 100 ? 'יותר מ-99' : blow.current.toFixed(1)}A.`;
   }
+  // say what actually happened, not a generic line
+  const st = game.state;
+  const g = st.fail?.device ? st.guards.find((x) => x.id === st.fail!.device) : undefined;
+  if (reason === 'caught' && g?.task) {
+    if (g.task.kind === 'fuse') explain = 'השומר הלך להחליף את הנתיך שנשרף — וראה אותך בדרך. אחרי פיצוץ נתיך, חכו בצל עד שהוא עובר.';
+    else if (g.task.kind === 'zone') explain = 'השומר בא לבדוק למה החדר החשיך. בחושך הוא רואה רק במה שהפנס שלו מאיר — הישארו מחוץ לקרן.';
+    else if (g.task.kind === 'noise') explain = 'השומר שמע או ראה משהו ובא לחפש. ריצה (Shift) מרעישה, ו"?" מעל הראש שלו אומר שעוד רגע הוא מבין.';
+  }
+  if ((reason === 'camera' || reason === 'laser') && st.lastRepair && st.time - st.lastRepair.t < 8)
+    explain = `השומר תיקן את ${game.panel(st.lastRepair.panel).label} — וה${reason === 'camera' ? 'מצלמה חזרה' : 'לייזר חזר'} לפעול. היו רחוקים לפני שהוא מסיים, או נתקו מעגל שהוא לא בודק.`;
   $('failExplain').textContent = explain;
+  const hint = game.level.noHints ? null : game.level.hints.find((h) => h.when === 'afterFail' && h.fail === reason);
+  $('failHint').classList.toggle('hidden', !hint);
+  if (hint) {
+    $('failHint').innerHTML = `<b>💡 רמז:</b> ${hint.text}`;
+    hintsShown.add(hint.id);
+    hintAvailable = null;
+  }
   $('btnRetry').textContent = game.hasCheckpoint() ? '↻ מנקודת השמירה' : '↻ נסו שוב';
+  $('btnRestart').classList.toggle('hidden', !game.hasCheckpoint());
   setScreen('fail');
 }
 
@@ -711,7 +799,7 @@ function showWin() {
   sfx.setSiren(false);
   const st = game.state;
   const L = game.level;
-  const ghost = st.stats.spottedPeaks === 0 && st.stats.fails === 0;
+  const ghost = st.stats.spottedPeaks === 0;
   const fast = st.time <= L.parSeconds;
   const stars = 1 + (ghost ? 1 : 0) + (fast ? 1 : 0);
   progress.stars[levelIdx] = Math.max(progress.stars[levelIdx] ?? 0, stars);
@@ -758,7 +846,8 @@ window.addEventListener('keydown', (e) => {
   }
   if (screen === 'play') {
     if (panelView) {
-      if (e.code === 'Escape' || e.code === 'KeyE') closePanel();
+      if (e.code === 'Escape' || (e.code === 'KeyE' && performance.now() - panelOpenedAt > 350)) closePanel();
+      if (e.code === 'KeyH') useHint();
       if (e.code === 'KeyC') doCut();
       return;
     }
@@ -921,6 +1010,7 @@ $('btnRotR').addEventListener('click', () => world.rotate(1));
 $('btnHint').addEventListener('click', useHint);
 $('toast').addEventListener('click', hideToast);
 $('pvClose').addEventListener('click', closePanel);
+$('pvHint').addEventListener('click', useHint);
 $('pvCut').addEventListener('click', doCut);
 $('pvMeter').addEventListener('click', () => {
   meterMode = !meterMode;
@@ -1064,6 +1154,11 @@ function tickSim(dt: number) {
     maybeAutoHint('start');
   }
   applyInput();
+  // the clock (and the building) waits for the player's first move
+  if (awaitingMove) {
+    if (game.moveIntent.x || game.moveIntent.y || game.state.thief.path.length || game.state.panelOpen || externalClock) awaitingMove = false;
+    else return;
+  }
   game.advance(dt);
   if (pendingInteract && !game.state.thief.path.length) {
     const tgt = game.interactTarget();
@@ -1113,6 +1208,7 @@ function draw(dt: number) {
   const w = window.innerWidth;
   const h = window.innerHeight;
   const want = screen === 'play' && !panelView && (scannerHeld || scannerToggle) ? 1 : 0;
+  if (want) scannerUsed = true;
   scan += (want - scan) * Math.min(1, dt * 8);
   if (Math.abs(want - scan) < 0.01) scan = want;
   sfx.setHum(scan);
@@ -1137,9 +1233,9 @@ function draw(dt: number) {
     const lab = $('pvInsetLabel');
     lab.style.left = `${ix}px`;
     lab.style.top = `${h - iy - ih - 20}px`;
-    world.camera.aspect = iw / ih;
-    world.camera.updateProjectionMatrix();
-    renderer.render(world.scene, world.camera);
+    world.insetCam.aspect = iw / ih;
+    world.insetCam.updateProjectionMatrix();
+    renderer.render(world.scene, world.insetCam);
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, w, h);
     renderPass.scene = world.scene;
