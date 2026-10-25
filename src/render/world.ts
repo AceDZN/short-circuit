@@ -928,6 +928,8 @@ export class WorldView {
       this.updateFan(gv.fanNear, gs.x, gs.y, gs.heading, r.fov, r.dark, 0.05);
       (gv.fanNear.material as THREE.MeshBasicMaterial).opacity = 0.42 + gs.notice * 0.35;
       (gv.fanNear.material as THREE.MeshBasicMaterial).color.setHex(gs.notice > 0.2 ? 0xff4020 : 0xffa000);
+      // speech bubble
+      this.labels.set(`say-${gs.id}`, new THREE.Vector3(gs.x, 3.05, gs.y), `<span>${gs.say ?? ''}</span>`, 'say', !!gs.say && st.status === 'playing' && !this.intro);
       // barks
       const bark = gs.bark === 'fix' ? '🔧' : gs.bark === 'zzz' ? 'Zzz' : gs.bark;
       const noticing = gs.notice > 0.03 && gs.mode !== 'busted';
@@ -1043,6 +1045,11 @@ export class WorldView {
           const cs = this.scene.children.find((c) => c.name === 'case' && c.position.x === ex.tile[0] + 0.5 && c.position.z === ex.tile[1] + 0.5);
           if (cs) cs.visible = false;
         }
+      }
+      if (e.type === 'closeCall') {
+        this.labels.set(`cc-${this.time}`, new THREE.Vector3(e.x!, 2.6, e.y!), '<span>על הסף! 😮‍💨</span>', 'closecall', true);
+        const key = `cc-${this.time}`;
+        window.setTimeout(() => this.labels.hide(key), 1400);
       }
       if (e.type === 'win') this.fx.confetti(new THREE.Vector3(this.game.state.thief.x, 1.5, this.game.state.thief.y));
       if (e.type === 'fail') this.bump(0.35);

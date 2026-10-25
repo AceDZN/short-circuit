@@ -171,6 +171,11 @@ export class Labels {
           it.el.style.setProperty('--ang', `${Math.atan2(dy, dx)}rad`);
         }
       }
+      else {
+        // keep bubbles and tags fully on screen
+        const half = (it.el.offsetWidth || 0) / 2 + 6;
+        x = Math.min(Math.max(x, half), w - half);
+      }
       it.el.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px)`;
     }
   }

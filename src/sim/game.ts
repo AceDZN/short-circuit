@@ -21,6 +21,18 @@ import type {
 } from './types';
 
 export const STEP = 1 / 60;
+
+/** Things the guards mutter. Picked in order (deterministic), shown as speech bubbles. */
+const LINES = {
+  dark: ['מי כיבה את האור?!', 'שוב החשמל הזה...', 'הלו? יש פה מישהו?', 'חושך מצרים פה.'],
+  fuse: ['שוב הנתיך הזה...', 'פוּף! מה נשרף עכשיו?', 'מישהו חיבר פה מיקרוגל?'],
+  again: ['מה?! שוב נשרף?!', 'יש פה קצר איפשהו...'],
+  noise: ['מה זה היה?', 'שמעתי משהו...', 'עכבר? ...עכבר ענק?'],
+  search: ['ראיתי אותך! ...נדמה לי.', 'איפה הוא הלך?', 'אני יודע שאתה פה!'],
+  giveup: ['כנראה דמיינתי.', 'טוב. בטח הצללים.', 'צריך קפה.'],
+  fixed: ['יופי, תוקן.', 'מתוקן. איזה מקצוען אני.', 'הנה. כמו חדש.'],
+  idle: ['איזה לילה שקט...', 'עוד שש שעות למשמרת...', 'מי שם פה נורה כל כך גדולה?', 'אני שומע זמזום...'],
+};
 const THIEF_R = 0.28;
 const WALK = 2.7;
 const RUN = 4.3;
@@ -44,6 +56,7 @@ export interface ThiefState {
 }
 
 export interface Stats {
+  closeCalls: number;
   spottedPeaks: number;
   fails: number;
   placements: number;
@@ -176,7 +189,7 @@ export class Game {
       panelOpen: null,
       checkpoint: -1,
       nextId: 1,
-      stats: { spottedPeaks: 0, fails: 0, placements: 0, cuts: 0, hintsUsed: 0, retries: 0 },
+      stats: { closeCalls: 0, spottedPeaks: 0, fails: 0, placements: 0, cuts: 0, hintsUsed: 0, retries: 0 },
       lastNoise: -10,
       peakNotice: 0,
     };
@@ -302,6 +315,7 @@ export class Game {
     if (g) {
       const prevAttempt = g.task?.kind === 'fuse' && g.task.fusePart === partId ? g.task.attempt : -1;
       this.assign(g, { kind: 'fuse', panel: panel!, fusePart: partId, point: p.front, attempt: prevAttempt + 1 }, 0.9);
+      this.say(g, prevAttempt >= 0 ? 'again' : 'fuse');
     }
   }
 
@@ -508,11 +522,26 @@ export class Game {
     this.checkCheckpoints();
     this.checkWin();
     this.checkTrapped(dt);
-    for (const g of s.guards)
+    for (const g of s.guards) {
       if (g.barkTimer > 0) {
         g.barkTimer -= dt;
         if (g.barkTimer <= 0) g.bark = '';
       }
+      if (g.sayT !== undefined && g.sayT > 0) {
+        g.sayT -= dt;
+        if (g.sayT <= 0) g.say = '';
+      }
+      // idle chatter now and then
+      if (g.mode === 'patrol' && !g.say && Math.floor(s.time / 17) !== Math.floor((s.time - dt) / 17) && Math.hypot(g.x - s.thief.x, g.y - s.thief.y) < 10) this.say(g, 'idle', 3);
+      // a close call: he passes right by you in the dark and never notices
+      g.closeT = Math.max(0, (g.closeT ?? 0) - dt);
+      const d = Math.hypot(g.x - s.thief.x, g.y - s.thief.y);
+      if (d < 2.2 && g.notice < 0.05 && g.mode !== 'busted' && !g.closeT && !this.isLit(s.thief.x, s.thief.y)) {
+        g.closeT = 8;
+        s.stats.closeCalls++;
+        this.emit({ type: 'closeCall', id: g.id, x: s.thief.x, y: s.thief.y });
+      }
+    }
     const peak = Math.max(0, ...s.guards.map((g) => g.notice));
     if (peak > 0.5 && s.peakNotice <= 0.5) s.stats.spottedPeaks++;
     s.peakNotice = peak;
@@ -569,6 +598,7 @@ export class Game {
       if (Math.hypot(g.x - x, g.y - y) > radius) continue;
       if (g.mode !== 'patrol' && g.mode !== 'return') continue;
       this.assign(g, { kind: 'noise', point: [Math.floor(x), Math.floor(y)], attempt: 0 }, 0.8);
+      this.say(g, 'noise');
       this.emit({ type: 'noise', x, y });
     }
   }
@@ -656,6 +686,7 @@ export class Game {
         const lamp = this.level.devices.find((d) => d.kind === 'lamp' && d.zone === z.id);
         const panel = lamp ? this.panelOfPart(lamp.part) : undefined;
         this.assign(g, { kind: 'zone', zone: z.id, panel, point: z.investigate, attempt: 0 }, 1.3);
+        this.say(g, 'dark');
         break;
       }
     }
@@ -680,6 +711,13 @@ export class Game {
       }
     }
     return best;
+  }
+
+  private lineN = 0;
+  say(g: GuardState, kind: keyof typeof LINES, dur = 2.6) {
+    const list = LINES[kind];
+    g.say = list[this.lineN++ % list.length];
+    g.sayT = dur;
   }
 
   private assign(g: GuardState, task: GuardTask, delay: number) {
@@ -778,6 +816,7 @@ export class Game {
     if (g.notice > 0.2 && g.lastSeen && this.isFree(g) && !(g.task?.kind === 'noise' && g.task.point[0] === g.lastSeen[0] && g.task.point[1] === g.lastSeen[1])) {
       // Lost sight of you: he goes to where he last saw you and searches.
       this.assign(g, { kind: 'noise', point: g.lastSeen, attempt: 0 }, 0.25);
+      this.say(g, 'search');
     }
     const L = this.level.guards.find((x) => x.id === g.id)!;
     const speed = L.speed ?? GUARD_SPEED;
@@ -848,7 +887,10 @@ export class Game {
         if (task.panel) {
           g.mode = 'toPanel';
           this.guardPathTo(g, this.panel(task.panel).front);
-        } else this.goBack(g);
+        } else {
+          if (task.kind === 'noise') this.say(g, 'giveup');
+          this.goBack(g);
+        }
         return;
       }
       case 'toPanel': {
@@ -873,6 +915,7 @@ export class Game {
           return;
         }
         this.repairPanel(task.panel!);
+        this.say(g, 'fixed');
         if (task.kind === 'fuse' && task.fusePart && this.state.parts[task.fusePart].blown) {
           // Still blown after his fix → the short is still there. He goes to look for it.
           const circuitPanel = this.circuitOf.get(task.fusePart)!.panel;

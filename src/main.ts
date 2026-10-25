@@ -657,6 +657,9 @@ function processEvents(events: GameEvent[]) {
       case 'guardHunt':
         showToast('הנתיך החדש נשרף שוב — השומר יוצא לחפש את הקצר! עוד מעט החשמל יחזור.', false, 5000);
         break;
+      case 'closeCall':
+        sfx.star(0);
+        break;
       case 'checkpoint':
         sfx.checkpoint();
         showToast('נקודת שמירה ✓', false, 1800);
@@ -718,7 +721,7 @@ function showWin() {
   });
   const ranks = ['חובבנים', 'מקצוענים', 'רוח רפאים'];
   $('winRank').textContent = `דירוג: ${ranks[stars - 1]}`;
-  $('winStats').innerHTML = `<div>⏱ <bdi dir="ltr">${fmtTime(st.time)}</bdi> (יעד <bdi dir="ltr">${fmtTime(L.parSeconds)}</bdi>)</div><div>👁 נחשפת ${st.stats.spottedPeaks} פעמים</div><div>${ghost ? '👻 רוח רפאים!' : `נפילות: ${st.stats.fails}`}</div><div>💡 רמזים: ${st.stats.hintsUsed}</div>`;
+  $('winStats').innerHTML = `<div>⏱ <bdi dir="ltr">${fmtTime(st.time)}</bdi> (יעד <bdi dir="ltr">${fmtTime(L.parSeconds)}</bdi>)</div><div>👁 נחשפת ${st.stats.spottedPeaks} פעמים</div><div>${ghost ? '👻 רוח רפאים!' : `נפילות: ${st.stats.fails}`}</div><div>💡 רמזים: ${st.stats.hintsUsed}</div><div>😮‍💨 על הסף: ${st.stats.closeCalls}</div>`;
   $('winLearn').textContent = L.concept;
   $('btnNext').classList.toggle('hidden', levelIdx >= LEVELS.length - 1);
   setScreen('win');

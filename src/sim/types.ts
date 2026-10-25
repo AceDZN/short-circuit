@@ -208,6 +208,10 @@ export interface GuardState {
   moving: boolean;
   /** Where he last caught sight of the thief. */
   lastSeen?: Tile;
+  /** A spoken line shown in a speech bubble, and how long it stays. */
+  say?: string;
+  sayT?: number;
+  closeT?: number;
 }
 
 export interface PartState {
@@ -240,7 +244,8 @@ export interface GameEvent {
     | 'spark'
     | 'noise'
     | 'hint'
-    | 'guardHunt';
+    | 'guardHunt'
+    | 'closeCall';
   id?: string;
   x?: number;
   y?: number;
