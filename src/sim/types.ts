@@ -66,6 +66,8 @@ export interface CircuitDef {
   parts: PartDef[];
   /** Nodes where the player may attach items. Defaults to every node. */
   terminals?: string[];
+  /** Empty sockets drawn on the board, e.g. where a battery or resistor goes. */
+  slots?: { a: string; b: string; label: string }[];
   /** Show the power budget (P = V·I) of the source on the board. */
   showPower?: boolean;
 }

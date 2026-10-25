@@ -286,3 +286,19 @@ export function makeDesk() {
   g.add(top);
   return g;
 }
+
+export function makePlanter() {
+  const g = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 0.95), new THREE.MeshStandardMaterial({ color: 0x4a4550, roughness: 0.9 }));
+  box.position.y = 0.275;
+  box.castShadow = box.receiveShadow = true;
+  g.add(box);
+  const leaf = new THREE.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 0.8 });
+  for (let i = 0; i < 5; i++) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.22 + (i % 2) * 0.06, 10, 8), leaf);
+    b.position.set(-0.28 + (i % 3) * 0.28, 0.65 + (i % 2) * 0.08, -0.15 + Math.floor(i / 3) * 0.3);
+    b.castShadow = true;
+    g.add(b);
+  }
+  return g;
+}

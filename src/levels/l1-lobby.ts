@@ -64,6 +64,7 @@ export const L1: LevelDef = {
       panel: 'p2',
       nodes: { n: [1, 5.5], p: [1, 1.5], f: [3.5, 1.5], g1: [6, 1.5], g2: [8, 1.5], m: [10.5, 1.5], r: [10.5, 5.5] },
       terminals: ['g1', 'g2', 'n'],
+      slots: [{ a: 'g1', b: 'g2', label: 'פער במעגל' }],
       parts: [
         { id: 'c3_bat', kind: 'battery', a: 'n', b: 'p', v: 6, label: 'סוללה 6V' },
         { id: 'c3_fuse', kind: 'fuse', a: 'p', b: 'f', rating: 3, label: 'נתיך 3A' },

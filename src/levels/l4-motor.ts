@@ -34,6 +34,10 @@ export const L4: LevelDef = {
       panel: 'pd',
       nodes: { bp: [1.2, 5.6], bq: [1.2, 1.2], f: [4, 1.2], r1: [6, 1.2], r2: [8.6, 1.2], m: [11, 1.2], mr: [11, 5.6] },
       terminals: ['bp', 'bq', 'r1', 'r2'],
+      slots: [
+        { a: 'bp', b: 'bq', label: 'סוללה (− למטה)' },
+        { a: 'r1', b: 'r2', label: 'חריץ לנגד' },
+      ],
       parts: [
         { id: 'cd_fuse', kind: 'fuse', a: 'bq', b: 'f', rating: 4, label: 'נתיך 4A' },
         { id: 'cd_w1', kind: 'wire', a: 'f', b: 'r1', r: 0.01, label: 'חוט' },

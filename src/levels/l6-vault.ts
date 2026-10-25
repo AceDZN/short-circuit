@@ -42,6 +42,7 @@ export const L6: LevelDef = {
         u1: [3.6, 6.4], u2: [5.4, 6.4], u3: [7.2, 6.4], u4: [9, 6.4], u5: [10.8, 6.4],
       },
       terminals: ['m1', 'm2', 'u5'],
+      slots: [{ a: 'm1', b: 'm2', label: 'חיבור המנוע' }],
       parts: [
         { id: 'cv_bat', kind: 'battery', a: 'n', b: 'p', v: 12, label: 'סוללות 12V' },
         { id: 'cv_fuse', kind: 'fuse', a: 'p', b: 'f', rating: 5, label: 'נתיך ראשי 5A' },

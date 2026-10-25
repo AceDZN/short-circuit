@@ -9,6 +9,7 @@ import {
   floorPool,
   glowSprite,
   makeDesk,
+  makePlanter,
   makeDoor,
   makeExhibit,
   makeExitSign,
@@ -74,7 +75,7 @@ export class WorldView {
   private lamps: LampView[] = [];
   private cams = new Map<string, { group: THREE.Group; head: THREE.Object3D; fan: THREE.Mesh; led: THREE.Mesh }>();
   private lasers = new Map<string, { beam: THREE.Group; glow: THREE.Mesh; emitters: THREE.Group[] }>();
-  private doors = new Map<string, { group: THREE.Group; slab: THREE.Object3D; led: THREE.Mesh }>();
+  private doors = new Map<string, { group: THREE.Group; slab: THREE.Object3D; led: THREE.Mesh }[]>();
   private windows = new Map<string, { pane: THREE.Mesh; led: THREE.Mesh }>();
   private sirens: { dome: THREE.Mesh; light: THREE.PointLight }[] = [];
   private hazards = new Map<string, { water: THREE.Mesh[]; cable: THREE.Mesh; tip: THREE.Vector3 }>();
@@ -151,10 +152,10 @@ export class WorldView {
   }
 
   private baseHemi() {
-    return this.level.theme === 'courtyard' ? 0.9 : 0.75;
+    return this.level.theme === 'courtyard' ? 0.75 : 0.55;
   }
   private baseMoon() {
-    return this.level.theme === 'courtyard' ? 1.2 : 0.7;
+    return this.level.theme === 'courtyard' ? 0.8 : 0.35;
   }
 
   // ───────────────────────── build
@@ -199,7 +200,7 @@ export class WorldView {
       for (let x = 0; x < g.w; x++) {
         const c = g.at(x, y);
         if (c === 'b') {
-          const d = makeDesk();
+          const d = theme === 'courtyard' ? makePlanter() : makeDesk();
           d.position.copy(tileCenter(x, y));
           this.scene.add(d);
         } else if (c === 'g') {
@@ -326,7 +327,7 @@ export class WorldView {
         const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
         const mid = a.clone().add(b).multiplyScalar(0.5);
         for (const hgt of [0.3, 0.6, 0.9]) {
-          const ray = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, len, 6), emissive(0xff1a1a, 6));
+          const ray = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, len, 6), emissive(0xff1a1a, 2.2));
           ray.position.copy(mid).setY(hgt);
           ray.quaternion.copy(q);
           beam.add(ray);
@@ -346,7 +347,9 @@ export class WorldView {
           const alongX = g.at(x - 1, y) === '#' || g.at(x + 1, y) === '#';
           if (!alongX) group.rotation.y = Math.PI / 2;
           s.add(group);
-          this.doors.set(d.id, { group, slab: group.getObjectByName('slab')!, led: group.getObjectByName('led') as THREE.Mesh });
+          const list = this.doors.get(d.id) ?? [];
+          list.push({ group, slab: group.getObjectByName('slab')!, led: group.getObjectByName('led') as THREE.Mesh });
+          this.doors.set(d.id, list);
         }
       } else if (d.kind === 'window') {
         const [x, y] = d.tile;
@@ -441,6 +444,21 @@ export class WorldView {
 
   /** Replace procedural props with Tripo models where they exist. */
   private async upgradeProps() {
+    if (this.level.theme === 'vault') {
+      const vd = await loadModel('vault-door');
+      if (vd)
+        for (const [, list] of this.doors) {
+          if (list.length < 2) continue;
+          const m = vd.scene.clone();
+          fitTo(m, 2.0);
+          // the round vault door spans both tiles; it rides the first slab up and down
+          m.position.x += 0.5;
+          m.position.y -= 1.25;
+          m.position.z += 0.08;
+          list[0].slab.add(m);
+          for (const d of list) (d.slab as THREE.Mesh).material = new THREE.MeshBasicMaterial({ visible: false });
+        }
+    }
     const panel = await loadModel('panel');
     if (panel) {
       for (const [, grp] of this.panels) {
@@ -616,7 +634,7 @@ export class WorldView {
       const target = dv.on ? Math.min(1.4, dv.brightness) : 0;
       L.flicker += (target - L.flicker) * Math.min(1, dt * (target > L.flicker ? 6 : 14));
       const f = L.flicker * (opts.reducedMotion ? 1 : 0.97 + Math.sin(this.time * 31 + L.def.tile[0]) * 0.03);
-      L.light.intensity = f * L.def.radius * 0.9;
+      L.light.intensity = f * L.def.radius * 1.2;
       L.bulb.emissiveIntensity = 0.15 + f * 1.6;
       (L.pool.material as THREE.MeshBasicMaterial).opacity = 0.16 * f;
       L.halo.material.opacity = 0.35 * f;
@@ -646,12 +664,14 @@ export class WorldView {
     }
 
     // doors
-    for (const [id, d] of this.doors) {
+    for (const [id, list] of this.doors) {
       const dv = game.devices.get(id)!;
       const open = st.doorOpen[id] ?? 0;
-      d.slab.position.y = 1.25 + open * 2.3;
-      d.slab.position.x = dv.strain && !opts.reducedMotion ? Math.sin(this.time * 60) * 0.02 : 0;
-      (d.led.material as THREE.MeshStandardMaterial).emissive.setHex(dv.on ? 0x30ff70 : dv.strain ? 0xffb020 : 0xff3030);
+      for (const d of list) {
+        d.slab.position.y = 1.25 + open * 2.3;
+        d.slab.position.x = dv.strain && !opts.reducedMotion ? Math.sin(this.time * 60) * 0.02 : 0;
+        (d.led.material as THREE.MeshStandardMaterial).emissive.setHex(dv.on ? 0x30ff70 : dv.strain ? 0xffb020 : 0xff3030);
+      }
     }
 
     // windows

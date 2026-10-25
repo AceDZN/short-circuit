@@ -120,6 +120,23 @@ export class PanelView {
         }
         this.addPart(c, p, editable);
       }
+      // labelled empty sockets
+      for (const sl of c.slots ?? []) {
+        const a = bp(c, sl.a, 0.004);
+        const b = bp(c, sl.b, 0.004);
+        const mid = a.clone().lerp(b, 0.5);
+        const len = a.distanceTo(b);
+        const vertical = Math.abs(a.x - b.x) < Math.abs(a.y - b.y);
+        const occupied = st.placed.some((pl) => pl.circuit === c.id && ((pl.a === sl.a && pl.b === sl.b) || (pl.a === sl.b && pl.b === sl.a)));
+        const box = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.PlaneGeometry(vertical ? 0.12 : len * 0.7, vertical ? len * 0.7 : 0.12)),
+          new THREE.LineDashedMaterial({ color: occupied ? 0x40ff90 : 0xffd04a, dashSize: 0.015, gapSize: 0.01 }),
+        );
+        box.computeLineDistances();
+        box.position.copy(mid);
+        this.dyn.add(box);
+        this.labels.set(`slot-${c.id}-${sl.a}`, mid.clone().add(new THREE.Vector3(vertical ? 0.13 : 0, vertical ? 0 : -0.07, 0.02)), sl.label, `pv-slot ${occupied ? 'full' : ''}`);
+      }
       // terminals
       const terms = new Set(editable ? this.game.terminalsOf(c.id) : []);
       for (const n of Object.keys(c.nodes)) {
@@ -439,8 +456,10 @@ export class PanelView {
 
   update(dt: number, w: number, h: number, reducedMotion: boolean) {
     this.time += dt;
-    this.doorOpen = Math.min(1, this.doorOpen + dt * 2.5);
-    this.doorPivot.rotation.y = -this.doorOpen * 1.9;
+    this.doorOpen = reducedMotion ? 1 : Math.min(1, this.doorOpen + dt * 2.5);
+    // The door starts shut over the board (π) and swings open to rest beside it.
+    const k = 1 - Math.pow(1 - this.doorOpen, 3);
+    this.doorPivot.rotation.y = Math.PI * (1 - k) - 0.55 * k;
     const m4 = new THREE.Matrix4();
     for (const f of this.flows) {
       const I = this.game.current(f.id);
