@@ -268,7 +268,12 @@ export class Game {
         strain = !on && I > 0.05;
         const was = prev.get(d.id);
         if (!silent && was && was.on !== on) this.emit({ type: on ? 'doorOpen' : 'doorClose', id: d.id });
-        if (!silent && strain && !was?.strain) this.emit({ type: 'doorStrain', id: d.id });
+        if (!silent && strain && !was?.strain) {
+          this.emit({ type: 'doorStrain', id: d.id });
+          // A straining motor groans loudly: nearby guards come to look.
+          const [tx, ty] = d.tiles[0];
+          this.makeNoise(tx + 0.5, ty + 1.5, 12);
+        }
       }
       if (d.kind === 'window') on = !!s.windowsOpen[d.id];
       this.devices.set(d.id, { id: d.id, kind: d.kind, on, current: I, brightness: on ? Math.min(1.8, I / nominal) : 0, value, strain });
@@ -415,7 +420,7 @@ export class Game {
     for (const p of this.level.panels) consider('panel', p.id, p.label, p.front[0] + 0.5, p.front[1] + 0.5, 0.95);
     for (const d of this.level.devices)
       if (d.kind === 'window') consider('window', d.id, s.windowsOpen[d.id] ? 'סגירת חלון' : 'פתיחת חלון', d.tile[0] + 0.5, d.tile[1] + 0.5, 1.35);
-    for (const e of this.level.exhibits) if (!s.stolen[e.id]) consider('exhibit', e.id, e.name, e.tile[0] + 0.5, e.tile[1] + 0.5, 1.4);
+    for (const e of this.level.exhibits) if (!s.stolen[e.id]) consider('exhibit', e.id, e.name, e.tile[0] + 0.5, e.tile[1] + 0.5, 1.55);
     if (!best) return null;
     const { kind, id, label } = best;
     return { kind, id, label };
@@ -550,9 +555,9 @@ export class Game {
     return false;
   }
 
-  private makeNoise(x: number, y: number) {
+  private makeNoise(x: number, y: number, radius = NOISE_R) {
     for (const g of this.state.guards) {
-      if (Math.hypot(g.x - x, g.y - y) > NOISE_R) continue;
+      if (Math.hypot(g.x - x, g.y - y) > radius) continue;
       if (g.mode !== 'patrol' && g.mode !== 'return') continue;
       this.assign(g, { kind: 'noise', point: [Math.floor(x), Math.floor(y)], attempt: 0 }, 0.8);
       this.emit({ type: 'noise', x, y });
@@ -731,7 +736,7 @@ export class Game {
     if (Math.abs(angleDiff(Math.atan2(dy, dx), g.heading)) > GUARD_FOV) return 0;
     if (!this.grid.los(g.x, g.y, t.x, t.y)) return 0;
     const near = 1 - d / range;
-    return (lit ? 1.5 : 1.1) * (0.55 + near) * (t.running ? 1.4 : 1);
+    return (lit ? 2.1 : 1.1) * (0.55 + near) * (t.running ? 1.4 : 1);
   }
 
   guardRange(g: GuardState) {

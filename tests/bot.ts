@@ -56,6 +56,17 @@ export class Bot {
     if (!this.g.interact()) throw new Error(`nothing to interact with at ${this.s.thief.x},${this.s.thief.y}`);
     return this;
   }
+  /** Advance until a predicate holds (or time runs out). */
+  until(pred: (b: Bot) => boolean, maxSeconds = 60) {
+    for (let t = 0; t < maxSeconds && this.ok; t += 0.05) {
+      if (pred(this)) break;
+      this.g.advance(0.05);
+    }
+    return this;
+  }
+  guard(id: string) {
+    return this.s.guards.find((g) => g.id === id)!;
+  }
   /** Wait until a guard reaches a mode (or time runs out). */
   waitGuard(id: string, mode: string, maxSeconds = 30) {
     for (let t = 0; t < maxSeconds && this.ok; t += 0.05) {
