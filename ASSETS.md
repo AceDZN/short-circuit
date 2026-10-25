@@ -137,8 +137,8 @@ All clips are in-place (no root motion). `run` is a 1.25 s loop, so drive the mo
 
 ## In-game use (lead)
 
-- `thief.glb` / `guard.glb` are loaded with `GLTFLoader`, cloned with `SkeletonUtils`, normalized to 1.95 m and 2.1 m (stylized and slightly oversized for readability from the isometric camera), facing +Z. Clips are chosen by name: idle → `idle`; walking → `walk`; running → `walk` at 1.7× (no run clip); guard look-around → `look_around`; guard noticing the thief → `frightened`. A procedural character is shown until the GLB loads, and stays if loading fails.
-- Hands-up (busted) and cheering (win) are procedural rotations of the `mixamorigLeftArm/RightArm/ForeArm` bones layered after the mixer update, because the rig has no surrender clip.
+- `thief.glb` / `guard.glb` are loaded with `GLTFLoader`, cloned with `SkeletonUtils`, normalized to 1.95 m and 2.1 m (stylized and slightly oversized for readability from the isometric camera), facing +Z. Clips are chosen by name: idle → `idle`; walking → `walk`; running → `run`; thief caught → `afraid`; thief escapes → `cheer`; guard looking around → `look_around`; guard noticing the thief → `angry_01`; post guards (heists 1 and 5) → `sit` on a procedural office chair. A procedural character is shown until the GLB loads, and stays if loading fails.
+- A procedural hands-up / cheer arm pose (rotating the `mixamorigLeftArm/RightArm/ForeArm` bones after the mixer update) remains as a fallback only for rigs without `afraid`/`cheer` clips.
 - `panel.glb` replaces the procedural wall-panel box (fitted to 0.95 m); the cyan LED strip stays procedural so it can pulse when the panel is usable.
 - `exhibit-bulb.glb` is the heist-2 gem and the heist-5 exhibit (fitted to 1 m on a pedestal); its filament glow and halo are procedural and follow the solved current through the gem part.
 - `vault-door.glb` spans both vault-door tiles in heist 6 and rides the procedural motor-door slab up when the motor current is high enough.

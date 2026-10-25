@@ -302,3 +302,19 @@ export function makePlanter() {
   }
   return g;
 }
+
+export function makeChair() {
+  const g = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1d2028, roughness: 0.6, metalness: 0.2 });
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.1, 0.55), dark);
+  seat.position.y = 0.5;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.6, 0.08), dark);
+  back.position.set(0, 0.85, -0.27);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.45), M.steel);
+  post.position.y = 0.25;
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 5), M.steel);
+  base.position.y = 0.04;
+  for (const m of [seat, back, post, base]) m.castShadow = true;
+  g.add(seat, back, post, base);
+  return g;
+}

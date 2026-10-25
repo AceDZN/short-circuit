@@ -8,6 +8,7 @@ import {
   emissive,
   floorPool,
   glowSprite,
+  makeChair,
   makeDesk,
   makePlanter,
   makeDoor,
@@ -153,6 +154,14 @@ export class WorldView {
       const fanNear = this.makeFan(0xffa000, 0.42);
       s.add(fanFar, fanNear);
       this.guards.set(gd.id, { actor, spot, fanFar, fanNear });
+      if (gd.route.length === 1) {
+        // post guards get a chair; they sit until something happens
+        const chair = makeChair();
+        const face = gd.route[0].face ?? 0;
+        chair.position.copy(tileCenter(gd.route[0].x, gd.route[0].y)).add(new THREE.Vector3(-Math.cos(face) * 0.12, 0, -Math.sin(face) * 0.12));
+        chair.rotation.y = Math.PI / 2 - face;
+        s.add(chair);
+      }
     }
     this.buildScanner();
     s.add(this.scannerGroup);
@@ -949,6 +958,8 @@ export class WorldView {
       gv.actor.root.rotation.y = Math.PI / 2 - gs.heading;
       let gp: Parameters<Actor['setPose']>[0] = gs.moving ? 'walk' : gs.mode === 'look' ? 'look' : 'idle';
       if (gs.mode === 'repair') gp = 'interact';
+      const post = this.level.guards.find((g) => g.id === gs.id)!.route.length === 1;
+      if (post && gs.mode === 'patrol' && !gs.moving) gp = 'sit';
       if (gs.notice > 0.2 || gs.mode === 'busted') gp = 'alert';
       gv.actor.setPose(gp);
       gv.actor.update(game.running || st.status !== 'playing' ? dt : 0, 0);

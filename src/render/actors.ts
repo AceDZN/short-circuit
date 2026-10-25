@@ -3,7 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { M, emissive } from './props';
 
-export type ActorPose = 'idle' | 'walk' | 'run' | 'sneak' | 'interact' | 'busted' | 'look' | 'alert' | 'cheer';
+export type ActorPose = 'idle' | 'walk' | 'run' | 'sneak' | 'interact' | 'busted' | 'look' | 'alert' | 'cheer' | 'sit';
 
 export interface Actor {
   root: THREE.Group;
@@ -40,7 +40,8 @@ const CLIP_KEYS: Record<ActorPose, string[]> = {
   interact: ['interact', 'pick', 'use', 'idle'],
   busted: ['surrender', 'hands', 'afraid', 'frightened', 'scared', 'hit', 'idle'],
   look: ['look', 'search', 'idle'],
-  alert: ['alert', 'surprise', 'frightened', 'shock', 'angry', 'idle'],
+  alert: ['alert', 'angry', 'surprise', 'frightened', 'shock', 'idle'],
+  sit: ['sit', 'idle'],
   cheer: ['cheer', 'victory', 'dance', 'jump', 'idle'],
 };
 
