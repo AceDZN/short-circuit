@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { LevelDef } from '../sim/types';
 import type { Grid } from '../sim/grid';
 import { M, emissive, glowSprite } from './props';
@@ -152,17 +153,16 @@ export function buildDecor(scene: THREE.Scene, level: LevelDef, grid: Grid, wall
       if (theme === 'vault') {
         if (r < 0.35) {
           // safe-deposit boxes
-          const g = new THREE.Group();
+          // 12 doors and knobs merged into two meshes
+          const boxes: THREE.BufferGeometry[] = [];
+          const knobs: THREE.BufferGeometry[] = [];
           for (let i = 0; i < 3; i++)
             for (let j = 0; j < 4; j++) {
-              const b = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.04), shared.box);
-              b.position.set(-0.32 + i * 0.32, 0.7 + j * 0.24, 0.02);
-              g.add(b);
-              const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 8), M.brass);
-              knob.rotation.x = Math.PI / 2;
-              knob.position.set(-0.32 + i * 0.32 + 0.06, 0.7 + j * 0.24, 0.05);
-              g.add(knob);
+              boxes.push(new THREE.BoxGeometry(0.2, 0.16, 0.04).translate(-0.32 + i * 0.32, 0.7 + j * 0.24, 0.02));
+              knobs.push(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 8).rotateX(Math.PI / 2).translate(-0.32 + i * 0.32 + 0.06, 0.7 + j * 0.24, 0.05));
             }
+          const g = new THREE.Group();
+          g.add(new THREE.Mesh(mergeGeometries(boxes), shared.box), new THREE.Mesh(mergeGeometries(knobs), M.brass));
           obj = g;
         } else if (r < 0.55) {
           const g = new THREE.Group();
