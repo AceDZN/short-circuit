@@ -23,16 +23,26 @@ Useful URL flags: `?level=N` starts on heist N, `?all=1` unlocks every heist, `?
 
 | Action | Keyboard / mouse | Touch |
 |---|---|---|
-| Move | WASD / arrows (camera-relative), or click the floor | tap the floor |
+| Move | WASD / arrows (camera-relative), or click the floor | on-screen joystick (push fully to run), or tap the floor |
 | Run (noisy — guards hear it) | Shift | — |
 | Use panel / window / take exhibit | E (or click it) | E button |
 | Wiring scanner (X-ray) | hold Space, or Tab to toggle | סורק button |
 | Rotate camera 90° | Z / X | ⟲ ⟳ |
+| Planning map (paused overview with guard patrol routes) | hold Q | 🗺 |
 | Hint (when 💡 glows) | H | 💡 |
 | Pause / mute | P or Esc / M | ⏸ / 🔊 |
-| In a panel | click a part to measure it; ✂ cuts/re-joins a wire; pick a bag item then two brass terminals to connect it (for a battery, the first terminal is −); Esc closes | same, by tap |
+| In a panel | click a part to measure it; ✂ cuts/re-joins a wire; pick a bag item, then click a labelled slot **or drag from one brass terminal to another** (for a battery, the first terminal is −); Esc closes | same, by tap |
 
-The world is paused while a panel is open (no reading-speed pressure); a live security-camera inset shows the building react to each change.
+The world is paused while a panel is open (no reading-speed pressure); a live security-camera inset shows the building react to each change, and an effects feed spells it out ("💡 the chandelier went out", "🚪 door opening!", "🚨 alarm loop broken!").
+
+## Game feel
+
+- **X-ray scanner:** a wave sweeps out from the thief and reveals the wiring *inside the walls*, with current dots whose speed follows the solved current.
+- **Guards:** a "?" meter fills over their heads (suspicion builds slowly, "!" confirms fast), they walk over to search where they last saw you, investigate dark rooms, answer fuse pops, hunt down a short, and mutter comic Hebrew lines.
+- **Readability:** wall-occluded vision cones, a light/shadow chip, noise rings when running, objective markers that pin to the screen edge, an intro flyover of the exhibit and exit, a paused planning map with patrol routes.
+- **Rewards:** close-call pops, a hit-stop when you grab the exhibit as it arcs into your backpack, live star goals (exhibit · ghost · par time), animated results with a rank.
+- **Sound:** an adaptive synthesized soundtrack (menu → sneak → tension when you're noticed → alarm/win) and layered effects, all generated in code.
+- **Polish:** image-based lighting for the PBR Tripo models, bloom, vignette and grain, a camera that leads your movement, adaptive resolution on weaker devices, and a reduced-motion option.
 
 ## The six heists (all implemented)
 
