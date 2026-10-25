@@ -41,7 +41,7 @@ The world is paused while a panel is open (no reading-speed pressure); a live se
 3. **לולאת האזעקה — Alarm Loop:** a series alarm loop; bridge a window sensor in parallel (graphite pencil) before opening it. Cutting first always trips it.
 4. **דלת המנוע — Motor Door:** Ohm's law; pick battery + resistance to give the motor ≥ 2 A without melting its 4 A fuse.
 5. **האפלה — Blackout:** a deliberate short melts the series fuse of a 220 V wing; a live cable over a puddle teaches wet-skin resistance; an unfused circuit shows why fuses exist.
-6. **הכספת — The Vault (transfer, no hints):** a parallel bus with a 60 W power budget (P = V·I), a real alarm loop and a decoy; "always cut" and "always short" both fail.
+6. **הכספת — The Vault (transfer, no hints):** a parallel bus whose 5 A fuse is a 60 W budget (P = V·I), a real alarm loop, a decoy loop and a guard-post light that must stay on; "always cut", "always short" and "cut everything but the alarm" all fail.
 
 Details per level: [CURRICULUM.md](CURRICULUM.md). Design: [GAME_IDENTITY.md](GAME_IDENTITY.md). Progress log: [progress.md](progress.md). Playtest record: [PLAYTEST.md](PLAYTEST.md). Mockups vs real captures: [docs/VISUAL_REVIEW.md](docs/VISUAL_REVIEW.md). Models: [ASSETS.md](ASSETS.md).
 
@@ -60,4 +60,4 @@ It is a static Vite site. In Vercel: import `AceDZN/short-circuit`, framework pr
 
 ## Status
 
-Implemented: all six heists, scanner, 3D panel close-up, guard AI, rigged Tripo thief and guard (walk/idle; guard also look-around and frightened), Tripo panel, giant bulb and vault door, Hebrew RTL UI, sound, hints, checkpoints, learning log, 69+ automated tests. Not verified by real students; see PLAYTEST.md for what was and wasn't checked.
+Implemented: all six heists, scanner, 3D panel close-up, guard AI, rigged Tripo thief and guard (walk/idle; guard also look-around and frightened), Tripo panel, giant bulb and vault door, Hebrew RTL UI, sound, hints, checkpoints, learning log, 73 automated tests. Measured 120 fps (vsync cap) on an M2 Max at 1600×900 (`scripts/fps.mjs`). Not verified by real students; see PLAYTEST.md for what was and wasn't checked.

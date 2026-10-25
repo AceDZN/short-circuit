@@ -152,7 +152,6 @@ kbd { background: #1a1d33; border: 1px solid #3a4170; border-radius: 5px; paddin
   .chip { font-size: 15px; padding: 5px 9px; }
   .segs i { width: 9px; }
   .eye { width: 28px; }
-  .hud-tools { top: 60px; }
   .scanner-btn { width: 72px; height: 72px; font-size: 14px; }
   .bag .slot { width: 46px; height: 46px; }
   .slot svg { width: 34px; height: 34px; }
