@@ -238,11 +238,12 @@ function proceduralActor(kind: 'thief' | 'guard'): Actor {
 export function createActor(kind: 'thief' | 'guard', onSwap?: (a: Actor) => void): Actor {
   const holder = new THREE.Group();
   let inner = proceduralActor(kind);
+  inner.root.scale.setScalar(1.2);
   holder.add(inner.root);
   let pose: ActorPose = 'idle';
   const lampAnchor = new THREE.Object3D();
   holder.add(lampAnchor);
-  const syncAnchor = () => lampAnchor.position.copy(inner.lampAnchor.position);
+  const syncAnchor = () => lampAnchor.position.copy(inner.lampAnchor.position).multiplyScalar(inner.root.scale.x);
   syncAnchor();
   const actor: Actor = {
     root: holder,
@@ -273,6 +274,6 @@ export function createActor(kind: 'thief' | 'guard', onSwap?: (a: Actor) => void
 
 /** Height and forward-axis correction for each rigged GLB (see ASSETS.md). */
 export const MODEL_META: Record<'thief' | 'guard', { height: number; yaw: number }> = {
-  thief: { height: 1.65, yaw: 0 },
-  guard: { height: 1.8, yaw: 0 },
+  thief: { height: 1.95, yaw: 0 },
+  guard: { height: 2.1, yaw: 0 },
 };

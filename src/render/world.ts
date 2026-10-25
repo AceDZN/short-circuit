@@ -21,9 +21,10 @@ import {
   makeStanchions,
 } from './props';
 import { marbleFloor, wallTex } from './textures';
+import { buildDecor, type WallDecor } from './decor';
 
 const WALL_H = 2.6;
-const LOW_H = 0.55;
+const LOW_H = 0.7;
 
 export interface ViewOptions {
   scanner: number; // 0..1 blend
@@ -68,6 +69,7 @@ export class WorldView {
   private walls!: THREE.InstancedMesh;
   private wallCaps!: THREE.InstancedMesh;
   private wallTiles: [number, number][] = [];
+  private decor: WallDecor[] = [];
   private wallMat!: THREE.MeshStandardMaterial;
   private lamps: LampView[] = [];
   private cams = new Map<string, { group: THREE.Group; head: THREE.Object3D; fan: THREE.Mesh; led: THREE.Mesh }>();
@@ -99,7 +101,7 @@ export class WorldView {
     s.fog = new THREE.Fog(s.background as THREE.Color, 30, 70);
     this.hemi = new THREE.HemisphereLight(0x4a4f9a, 0x120c1c, this.baseHemi());
     s.add(this.hemi);
-    s.add(new THREE.AmbientLight(0x262040, 0.25));
+    s.add(new THREE.AmbientLight(0x2c2650, 0.45));
     const moon = new THREE.DirectionalLight(0x9db0ff, this.baseMoon());
     const g = game.grid;
     moon.position.set(g.w * 0.3, 18, -4);
@@ -112,9 +114,11 @@ export class WorldView {
     s.add(moon, moon.target);
     this.moon = moon;
     this.buildTiles();
+    this.decor = buildDecor(s, this.level, game.grid, this.wallTiles);
     this.buildDevices();
     this.buildPanels();
     this.buildExhibits();
+    this.buildProps();
     this.buildExit();
     this.thief = createActor('thief');
     s.add(this.thief.root);
@@ -125,13 +129,13 @@ export class WorldView {
     for (const gd of this.level.guards) {
       const actor = createActor('guard');
       s.add(actor.root);
-      const spot = new THREE.SpotLight(0xfff0c0, 9, 8, 0.5, 0.6, 1.4);
+      const spot = new THREE.SpotLight(0xffe2a0, 3, 7, 0.55, 1, 1.6);
       actor.lampAnchor.add(spot);
       spot.position.set(0.25, -0.35, 0.1);
       spot.target.position.set(0.25, -1.5, 4);
       actor.lampAnchor.add(spot.target);
-      const fanFar = this.makeFan(0xffe27a, 0.13);
-      const fanNear = this.makeFan(0xffd040, 0.28);
+      const fanFar = this.makeFan(0xffb300, 0.2);
+      const fanNear = this.makeFan(0xffa000, 0.42);
       s.add(fanFar, fanNear);
       this.guards.set(gd.id, { actor, spot, fanFar, fanNear });
     }
@@ -147,10 +151,10 @@ export class WorldView {
   }
 
   private baseHemi() {
-    return this.level.theme === 'courtyard' ? 0.8 : 0.4;
+    return this.level.theme === 'courtyard' ? 0.9 : 0.75;
   }
   private baseMoon() {
-    return this.level.theme === 'courtyard' ? 1.2 : 0.55;
+    return this.level.theme === 'courtyard' ? 1.2 : 0.7;
   }
 
   // ───────────────────────── build
@@ -187,7 +191,7 @@ export class WorldView {
     this.walls.castShadow = true;
     this.walls.receiveShadow = true;
     this.scene.add(this.walls);
-    const capMat = new THREE.MeshStandardMaterial({ color: theme === 'vault' ? 0x2c3442 : 0x2a2233, emissive: 0x6b4fd0, emissiveIntensity: 0.04, roughness: 0.5, metalness: 0.2, transparent: true });
+    const capMat = new THREE.MeshBasicMaterial({ color: theme === 'vault' ? 0x1a2230 : theme === 'courtyard' ? 0x1d1a22 : 0x17121f, transparent: true });
     this.wallCaps = new THREE.InstancedMesh(new THREE.BoxGeometry(1.02, 0.06, 1.02), capMat, this.wallTiles.length);
     this.scene.add(this.wallCaps);
 
@@ -238,8 +242,11 @@ export class WorldView {
 
   private applyWallHeights() {
     const m4 = new THREE.Matrix4();
+    const low = new Set<string>();
     this.wallTiles.forEach(([x, y], i) => {
-      const h = this.wallFront(x, y) ? LOW_H : WALL_H;
+      const front = this.wallFront(x, y);
+      if (front) low.add(`${x},${y}`);
+      const h = front ? LOW_H : WALL_H;
       m4.compose(new THREE.Vector3(x + 0.5, h / 2, y + 0.5), new THREE.Quaternion(), new THREE.Vector3(1, h, 1));
       this.walls.setMatrixAt(i, m4);
       m4.makeTranslation(x + 0.5, h + 0.03, y + 0.5);
@@ -247,6 +254,7 @@ export class WorldView {
     });
     this.walls.instanceMatrix.needsUpdate = true;
     this.wallCaps.instanceMatrix.needsUpdate = true;
+    for (const d of this.decor) d.obj.visible = !low.has(d.key);
   }
 
   private wallNormal(tile: [number, number], toward?: [number, number]) {
@@ -324,7 +332,7 @@ export class WorldView {
           beam.add(ray);
         }
         const glow = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.42, 0.42, len, 10, 1, true),
+          new THREE.CylinderGeometry(0.1, 0.1, len, 8, 1, true),
           new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
         );
         glow.position.copy(mid).setY(0.6);
@@ -405,6 +413,25 @@ export class WorldView {
     }
   }
 
+  private buildProps() {
+    for (const p of this.level.props ?? []) {
+      const grp = makeExhibit(p.model);
+      grp.position.copy(tileCenter(p.tile[0], p.tile[1], this.game.grid.at(p.tile[0], p.tile[1]) === 'g' ? 0.9 : 0));
+      this.scene.add(grp);
+      if (p.model === 'bulb') {
+        loadModel('exhibit-bulb').then((g) => {
+          if (!g) return;
+          const m = g.scene.clone();
+          fitTo(m, 1.0);
+          grp.children.forEach((c) => {
+            if (!(c as THREE.Sprite).isSprite) c.visible = false;
+          });
+          grp.add(m);
+        });
+      }
+    }
+  }
+
   private buildExit() {
     const [x, y] = this.level.exit;
     const sign = makeExitSign();
@@ -449,7 +476,7 @@ export class WorldView {
     const idx: number[] = [];
     for (let i = 1; i <= n; i++) idx.push(0, i, i + 1);
     geo.setIndex(idx);
-    const mat = new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const mat = new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.frustumCulled = false;
     mesh.userData.n = n;
@@ -463,6 +490,7 @@ export class WorldView {
     const col = fan.geometry.attributes.color as THREE.BufferAttribute;
     pos.setXYZ(0, x, height, y);
     col.setXYZ(0, 1, 1, 1);
+    // vertex colour fades the wedge toward its tip
     for (let i = 0; i <= n; i++) {
       const a = heading - half + (2 * half * i) / n;
       const dx = Math.cos(a);
@@ -475,7 +503,7 @@ export class WorldView {
         r += 0.1;
       }
       pos.setXYZ(i + 1, x + dx * r, height, y + dy * r);
-      col.setXYZ(i + 1, 0.15, 0.15, 0.15);
+      col.setXYZ(i + 1, 0.55, 0.55, 0.55);
     }
     pos.needsUpdate = true;
     col.needsUpdate = true;
@@ -540,7 +568,7 @@ export class WorldView {
   }
 
   setZoom(z: number) {
-    this.zoom = Math.max(0.6, Math.min(1.6, z));
+    this.zoom = Math.max(0.6, Math.min(1.9, z));
   }
 
   private updateCamera(dt: number, snap = false) {
@@ -550,7 +578,7 @@ export class WorldView {
     const want = this.yawFor(this.yawIndex);
     this.yaw += angleLerp(this.yaw, want, snap ? 1 : 1 - Math.exp(-dt * 8));
     const aspect = this.camera.aspect || 1.6;
-    const dist = 30 * this.zoom * Math.max(1, 1.45 / aspect);
+    const dist = 23 * this.zoom * Math.max(1, 1.45 / aspect);
     const el = 0.92;
     const shake = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     this.camera.position.set(
@@ -574,10 +602,11 @@ export class WorldView {
     const st = game.state;
     const scan = opts.scanner;
     // walls fade to dark glass in scanner mode
-    this.wallMat.opacity = 1 - scan * 0.82;
+    this.wallMat.opacity = 1 - scan * 0.7;
+    this.wallMat.color.setRGB(1 - scan * 0.75, 1 - scan * 0.6, 1 - scan * 0.45);
     this.wallMat.depthWrite = scan < 0.5;
-    (this.wallCaps.material as THREE.MeshStandardMaterial).opacity = 1 - scan * 0.6;
-    this.wallMat.emissive.setRGB(0, scan * 0.12, scan * 0.18);
+    (this.wallCaps.material as THREE.MeshBasicMaterial).opacity = 1 - scan * 0.6;
+    this.wallMat.emissive.setRGB(0, scan * 0.05, scan * 0.09);
     this.hemi.intensity = this.baseHemi() * (1 - scan * 0.4);
     this.moon.intensity = this.baseMoon() * (1 - scan * 0.5);
 
@@ -587,7 +616,7 @@ export class WorldView {
       const target = dv.on ? Math.min(1.4, dv.brightness) : 0;
       L.flicker += (target - L.flicker) * Math.min(1, dt * (target > L.flicker ? 6 : 14));
       const f = L.flicker * (opts.reducedMotion ? 1 : 0.97 + Math.sin(this.time * 31 + L.def.tile[0]) * 0.03);
-      L.light.intensity = f * L.def.radius * 1.5;
+      L.light.intensity = f * L.def.radius * 0.9;
       L.bulb.emissiveIntensity = 0.15 + f * 1.6;
       (L.pool.material as THREE.MeshBasicMaterial).opacity = 0.16 * f;
       L.halo.material.opacity = 0.35 * f;
@@ -612,7 +641,7 @@ export class WorldView {
     for (const [id, l] of this.lasers) {
       const on = game.devices.get(id)!.on;
       l.beam.visible = l.glow.visible = on;
-      if (on && !opts.reducedMotion) (l.glow.material as THREE.MeshBasicMaterial).opacity = 0.14 + Math.sin(this.time * 20) * 0.05;
+      if (on && !opts.reducedMotion) (l.glow.material as THREE.MeshBasicMaterial).opacity = 0.06 + Math.sin(this.time * 20) * 0.02;
       for (const e of l.emitters) e.traverse((o) => o.name === 'led' && (((o as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = on ? 4 : 0.1));
     }
 
@@ -705,8 +734,8 @@ export class WorldView {
       const r = game.guardRange(gs);
       this.updateFan(gv.fanFar, gs.x, gs.y, gs.heading, r.fov, r.lit, 0.04);
       this.updateFan(gv.fanNear, gs.x, gs.y, gs.heading, r.fov, r.dark, 0.05);
-      (gv.fanNear.material as THREE.MeshBasicMaterial).opacity = 0.26 + gs.notice * 0.5;
-      (gv.fanNear.material as THREE.MeshBasicMaterial).color.setHex(gs.notice > 0.2 ? 0xff5030 : 0xffd040);
+      (gv.fanNear.material as THREE.MeshBasicMaterial).opacity = 0.42 + gs.notice * 0.35;
+      (gv.fanNear.material as THREE.MeshBasicMaterial).color.setHex(gs.notice > 0.2 ? 0xff4020 : 0xffa000);
       // barks
       const bark = gs.bark === 'fix' ? '🔧' : gs.bark === 'zzz' ? 'Zzz' : gs.bark;
       this.labels.set(`bark-${gs.id}`, new THREE.Vector3(gs.x, 2.35, gs.y), `<span>${bark}</span>`, `bark ${gs.bark === '!' || gs.bark === '!!' ? 'alert' : ''}`, !!gs.bark);

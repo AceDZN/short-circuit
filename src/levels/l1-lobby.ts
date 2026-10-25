@@ -11,7 +11,7 @@ export const L1: LevelDef = {
   map: [
     '########################', // 0
     '########################', // 1
-    '######..........#..#...#', // 2
+    '######.g......g.#..#...#', // 2  decorative exhibits
     '######..........#..#....', // 3  exit (23,3)
     '######..bbbbb...#..D...#', // 4  desk, door (19,4)
     '######..........#..#.g.#', // 5  exhibit (21,5)
@@ -87,6 +87,10 @@ export const L1: LevelDef = {
   exhibits: [{ id: 'volta', tile: [21, 5], name: 'ערמת וולטה', model: 'pile', zone: 'exroom' }],
   bag: ['glove', 'coin'],
   alwaysLit: [[20, 2, 22, 5]],
+  props: [
+    { tile: [7, 2], model: 'coil' },
+    { tile: [14, 2], model: 'generator' },
+  ],
   checkpoints: [{ rect: [17, 2, 18, 9] }],
   hints: [
     { id: 'h1', when: 'start', text: 'החזיקו רווח (או כפתור הסורק) כדי לראות את החוטים בתוך הקירות.' },

@@ -161,6 +161,8 @@ export interface LevelDef {
   parSeconds: number;
   /** Short worked explanation per failure type, shown after the funny consequence. */
   explain: Partial<Record<FailReason, string>>;
+  /** Purely decorative exhibits (on 'g' pedestal tiles); never part of the heist. */
+  props?: { tile: Tile; model: ExhibitDef['model'] }[];
   /** Moonlit floor tiles stay dark; "ambient" lit areas (e.g. a lit hallway not on any circuit). */
   alwaysLit?: [number, number, number, number][];
 }

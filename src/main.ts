@@ -30,7 +30,7 @@ renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 1.3;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
@@ -932,6 +932,9 @@ window.__sc = {
   },
   get panel() {
     return panelView;
+  },
+  get world() {
+    return world;
   },
   interact,
   closePanel,
