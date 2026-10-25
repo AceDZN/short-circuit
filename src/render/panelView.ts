@@ -58,6 +58,7 @@ export class PanelView {
     this.labels = new Labels(labelLayer);
     const s = this.scene;
     s.background = new THREE.Color(0x090b14);
+    s.environmentIntensity = 0.35;
     s.add(new THREE.HemisphereLight(0x8090c0, 0x101018, 1.2));
     const key = new THREE.DirectionalLight(0xfff0e0, 1.6);
     key.position.set(-0.6, 0.8, 1.6);

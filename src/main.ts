@@ -10,6 +10,8 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Sfx, type MusicMode } from './audio';
 import { LEVELS } from './levels';
 import { PanelView, type PanelPick } from './render/panelView';
@@ -38,6 +40,19 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.6, 0.55, 0.78);
 composer.addPass(renderPass);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+// finishing: vignette + fine film grain (after tone mapping)
+const finish = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uVig: { value: 0.32 }, uGrain: { value: 0.035 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uVig; uniform float uGrain; varying vec2 vUv;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
+    void main(){ vec4 c = texture2D(tDiffuse, vUv); vec2 d = vUv - 0.5; float v = smoothstep(0.85, 0.2, length(d) * 1.25);
+      c.rgb *= mix(1.0 - uVig, 1.0, v); c.rgb += (h(vUv * 1000.0) - 0.5) * uGrain; gl_FragColor = c; }`,
+});
+composer.addPass(finish);
+// a dim studio environment so the PBR models (brass, glass, painted steel) get real reflections
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
 const sfx = new Sfx();
 
@@ -108,6 +123,8 @@ function loadLevel(i: number) {
   game = new Game(LEVELS[i]);
   game.onLog = logEvent;
   world = new WorldView(game, labelsEl);
+  world.scene.environment = envTex;
+  world.scene.environmentIntensity = 0.18;
   renderPass.scene = world.scene;
   renderPass.camera = world.camera;
   hintsShown.clear();
@@ -295,6 +312,7 @@ function updateBag(force = false) {
 function openPanelView(id: string) {
   panelView?.dispose();
   panelView = new PanelView(game, id, pvLabelsEl);
+  panelView.scene.environment = envTex;
   meterMode = false;
   lastSnap = snapDevices();
   $('pvFeed').innerHTML = '';
@@ -901,6 +919,8 @@ $('btnRetry').addEventListener('click', () => {
   game.retry(false);
   world.dispose();
   world = new WorldView(game, labelsEl);
+  world.scene.environment = envTex;
+  world.scene.environmentIntensity = 0.18;
   renderPass.scene = world.scene;
   renderPass.camera = world.camera;
   setScreen('play');
@@ -948,16 +968,52 @@ canvas.addEventListener('webglcontextrestored', () => {
 
 // ───────────────────────────── loop
 
+// touch joystick (shown on coarse pointers)
+const joy = { x: 0, y: 0, id: -1 };
+{
+  const base = $('joy');
+  const knob = $('joyKnob');
+  const move = (e: PointerEvent) => {
+    const r = base.getBoundingClientRect();
+    let dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+    let dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+    const m = Math.hypot(dx, dy);
+    if (m > 1) {
+      dx /= m;
+      dy /= m;
+    }
+    joy.x = dx;
+    joy.y = dy;
+    knob.style.transform = `translate(${dx * 34}px, ${dy * 34}px)`;
+  };
+  base.addEventListener('pointerdown', (e) => {
+    sfx.unlock();
+    joy.id = e.pointerId;
+    base.setPointerCapture(e.pointerId);
+    if (world.introActive) world.skipIntro();
+    move(e);
+  });
+  base.addEventListener('pointermove', (e) => e.pointerId === joy.id && move(e));
+  const end = (e: PointerEvent) => {
+    if (e.pointerId !== joy.id) return;
+    joy.id = -1;
+    joy.x = joy.y = 0;
+    knob.style.transform = '';
+  };
+  base.addEventListener('pointerup', end);
+  base.addEventListener('pointercancel', end);
+}
+
 function applyInput() {
-  let ix = 0;
-  let iy = 0;
+  let ix = joy.x;
+  let iy = joy.y;
   for (const [k, [x, y]] of Object.entries(MOVE_KEYS))
     if (keys.has(k)) {
       ix += x;
       iy += y;
     }
   const d = ix || iy ? world.screenToWorldDir(ix, iy) : { x: 0, y: 0 };
-  game.moveIntent = { x: d.x, y: d.y, run: keys.has('ShiftLeft') || keys.has('ShiftRight') };
+  game.moveIntent = { x: d.x, y: d.y, run: keys.has('ShiftLeft') || keys.has('ShiftRight') || Math.hypot(joy.x, joy.y) > 0.97 };
 }
 
 function tickSim(dt: number) {
@@ -1001,6 +1057,8 @@ function draw(dt: number) {
   sfx.setHum(scan);
   world.update(dt, { scanner: scan, reducedMotion: settings.reduced, attract: screen === 'title' || screen === 'brief' }, w, h);
   bloom.strength = panelView ? 0.3 : 0.55 + scan * 0.35;
+  finish.uniforms.uTime.value = (finish.uniforms.uTime.value + dt) % 100;
+  finish.uniforms.uGrain.value = settings.reduced ? 0 : 0.035;
   if (panelView) {
     panelView.update(dt, w, h, settings.reduced);
     renderPass.scene = panelView.scene;
