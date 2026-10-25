@@ -9,6 +9,7 @@ interface P {
   size: number;
   color: THREE.Color;
   kind: 'spark' | 'smoke' | 'confetti';
+  g?: number;
 }
 
 /** Small CPU particle system: sparks, smoke puffs, confetti. */
@@ -20,6 +21,8 @@ export class Particles {
   private pos = new Float32Array(this.max * 3);
   private col = new Float32Array(this.max * 3);
   private size = new Float32Array(this.max);
+  /** Height sparks bounce on (−∞ disables bouncing). */
+  floor = 0.03;
 
   constructor() {
     this.geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
@@ -38,11 +41,11 @@ export class Particles {
     this.points.frustumCulled = false;
   }
 
-  sparks(at: THREE.Vector3, n = 40, color = 0xffd27a) {
+  sparks(at: THREE.Vector3, n = 40, color = 0xffd27a, scale = 1) {
     const c = new THREE.Color(color);
     for (let i = 0; i < n; i++) {
-      const v = new THREE.Vector3((Math.random() - 0.5) * 5, Math.random() * 4 + 1, (Math.random() - 0.5) * 5);
-      this.add({ pos: at.clone(), vel: v, life: 0, max: 0.4 + Math.random() * 0.5, size: 0.12 + Math.random() * 0.1, color: c, kind: 'spark' });
+      const v = new THREE.Vector3((Math.random() - 0.5) * 5, Math.random() * 4 + 1, (Math.random() - 0.5) * 5).multiplyScalar(scale);
+      this.add({ pos: at.clone(), vel: v, life: 0, max: 0.4 + Math.random() * 0.5, size: (0.12 + Math.random() * 0.1) * Math.sqrt(scale), color: c, kind: 'spark', g: 9.8 * scale });
     }
   }
 
@@ -71,14 +74,14 @@ export class Particles {
     for (const p of this.list) {
       p.life += dt;
       if (p.life >= p.max) continue;
-      if (p.kind === 'spark') p.vel.y -= 9.8 * dt;
+      if (p.kind === 'spark') p.vel.y -= (p.g ?? 9.8) * dt;
       if (p.kind === 'confetti') {
         p.vel.y -= 4 * dt;
         p.vel.multiplyScalar(0.98);
       }
       p.pos.addScaledVector(p.vel, dt);
-      if (p.pos.y < 0.03 && p.kind !== 'smoke') {
-        p.pos.y = 0.03;
+      if (p.pos.y < this.floor && p.kind !== 'smoke') {
+        p.pos.y = this.floor;
         p.vel.y *= -0.3;
         p.vel.x *= 0.6;
         p.vel.z *= 0.6;

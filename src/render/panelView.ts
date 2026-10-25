@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import type { Game } from '../sim/game';
 import { ITEMS } from '../sim/items';
 import type { CircuitDef, ItemKind, PartDef, PlacedPart } from '../sim/types';
-import { Labels } from './fx';
+import { Labels, Particles } from './fx';
 import { M, emissive, glowSprite } from './props';
 import { boardTex, hazardTex, labelTex } from './textures';
 
 const S = 0.1; // metres per board unit
 
 export type PanelPick =
+  | { type: 'slot'; circuit: string; a: string; b: string }
   | { type: 'part'; id: string; circuit: string }
   | { type: 'placed'; id: string; circuit: string }
   | { type: 'terminal'; circuit: string; node: string };
@@ -47,6 +48,9 @@ export class PanelView {
   /** Ammeter mode: show the current on every wire too. */
   meter = false;
   hover: PanelPick | null = null;
+  readonly fx = new Particles();
+  private dragLine: THREE.Line;
+  private dragFrom: THREE.Vector3 | null = null;
 
   constructor(game: Game, panelId: string, labelLayer: HTMLElement) {
     this.game = game;
@@ -87,7 +91,44 @@ export class PanelView {
     this.doorPivot.add(door, sign);
     s.add(this.doorPivot);
     s.add(this.dyn);
+    this.fx.floor = -Infinity;
+    s.add(this.fx.points);
+    this.dragLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineDashedMaterial({ color: 0xffd04a, dashSize: 0.02, gapSize: 0.012 }));
+    this.dragLine.visible = false;
+    s.add(this.dragLine);
     this.rebuild();
+  }
+
+  /** Board-space position of a circuit node (for effects and the drag preview). */
+  nodePos(circuitId: string, node: string, z = 0.03) {
+    const c = this.game.circuit(circuitId);
+    return bp(c, node, z);
+  }
+
+  /** Sparks where a part sits on the board. */
+  sparkAt(partId: string) {
+    const c = this.game.level.circuits.find((cc) => cc.parts.some((p) => p.id === partId)) ?? this.game.circuit(this.game.state.placed.find((p) => p.id === partId)?.circuit ?? '');
+    const p = c?.parts.find((pp) => pp.id === partId) ?? this.game.state.placed.find((pp) => pp.id === partId);
+    if (!c || !p) return;
+    const at = bp(c, p.a, 0.03).lerp(bp(c, p.b, 0.03), 0.5);
+    this.fx.sparks(at, 26, 0xffe08a, 0.08);
+  }
+
+  /** Rubber-band wire from a terminal to the pointer while dragging. */
+  setDrag(from: { circuit: string; node: string } | null, ndcX = 0, ndcY = 0) {
+    if (!from) {
+      this.dragLine.visible = false;
+      this.dragFrom = null;
+      return;
+    }
+    this.dragFrom = this.nodePos(from.circuit, from.node);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    const to = new THREE.Vector3();
+    ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -0.03), to);
+    this.dragLine.geometry.setFromPoints([this.dragFrom, to]);
+    this.dragLine.computeLineDistances();
+    this.dragLine.visible = true;
   }
 
   get panel() {
@@ -137,6 +178,11 @@ export class PanelView {
         box.computeLineDistances();
         box.position.copy(mid);
         this.dyn.add(box);
+        const slotHit = new THREE.Mesh(new THREE.PlaneGeometry(vertical ? 0.16 : len * 0.7, vertical ? len * 0.7 : 0.16), new THREE.MeshBasicMaterial({ visible: false }));
+        slotHit.position.copy(mid).setZ(0.05);
+        slotHit.userData = { pick: { type: 'slot', circuit: c.id, a: sl.a, b: sl.b } satisfies PanelPick };
+        this.dyn.add(slotHit);
+        if (!occupied) this.pickables.push(slotHit);
         this.labels.set(`slot-${c.id}-${sl.a}`, mid.clone().add(new THREE.Vector3(vertical ? 0.13 : 0, vertical ? 0 : -0.07, 0.02)), sl.label, `pv-slot ${occupied ? 'full' : ''}`);
       }
       // terminals
@@ -453,13 +499,14 @@ export class PanelView {
     ray.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
     const hits = ray.intersectObjects(this.pickables, false);
     // Terminals win over the wires they sit on.
-    const t = hits.find((h) => h.object.userData.pick?.type === 'terminal');
+    const t = hits.find((h) => h.object.userData.pick?.type === 'terminal') ?? (this.placingItem ? hits.find((h) => h.object.userData.pick?.type === 'slot') : undefined);
     const h = t ?? hits[0];
     return h ? (h.object.userData.pick as PanelPick) : null;
   }
 
   update(dt: number, w: number, h: number, reducedMotion: boolean) {
     this.time += dt;
+    this.fx.update(dt);
     this.doorOpen = reducedMotion ? 1 : Math.min(1, this.doorOpen + dt * 2.5);
     // The door starts shut over the board (π) and swings open to rest beside it.
     const k = 1 - Math.pow(1 - this.doorOpen, 3);

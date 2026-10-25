@@ -47,6 +47,7 @@
         <div class="pv-help" id="pvHelp"></div>
       </div>
       <div class="pv-inspector" id="pvInspector"></div>
+      <div class="pv-feed" id="pvFeed"></div>
       <div class="pv-bottom">
         <div class="pv-bag">
           <div class="pv-bag-title">תיק</div>
@@ -64,18 +65,21 @@
     <div id="screens">
       <section id="scrTitle" class="screen">
         <div class="title-card">
+          <div class="title-top">
           <div class="logo"><span class="bolt">⚡</span>קצר</div>
           <div class="logo-en">SHORT CIRCUIT</div>
           <p class="tagline">שוד לילי במוזיאון החשמל. כל מצלמה, לייזר ואזעקה הם עוד מעגל חשמלי בקיר — ואתם מחווטים אותם מחדש.</p>
-          <div class="level-grid" id="levelGrid"></div>
-          <div class="title-actions">
-            <button class="big-btn" id="btnStart">מתחילים בשוד</button>
           </div>
-          <div class="controls-help">
-            <div><kbd>W A S D</kbd> / חצים / לחיצה על הרצפה — תזוזה</div>
-            <div><kbd>Shift</kbd> ריצה (רועשת!) · <kbd>E</kbd> פעולה · <kbd>TAB</kbd>/<kbd>רווח</kbd> סורק · <kbd>Z</kbd>/<kbd>X</kbd> סיבוב</div>
+          <div class="title-bottom">
+            <div class="level-grid" id="levelGrid"></div>
+            <div class="title-actions">
+              <button class="big-btn" id="btnStart">מתחילים בשוד</button>
+            </div>
+            <div class="controls-help">
+              <div><kbd>W A S D</kbd> / חצים / לחיצה על הרצפה — תזוזה · <kbd>Shift</kbd> ריצה (רועשת!) · <kbd>E</kbd> פעולה · <kbd>TAB</kbd>/<kbd>רווח</kbd> סורק · <kbd>Z</kbd>/<kbd>X</kbd> סיבוב</div>
+            </div>
+            <label class="opt"><input type="checkbox" id="optReduced" /> הפחתת תנועה</label>
           </div>
-          <label class="opt"><input type="checkbox" id="optReduced" /> הפחתת תנועה</label>
         </div>
       </section>
       <section id="scrBrief" class="screen hidden">

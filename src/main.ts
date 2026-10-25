@@ -92,6 +92,7 @@ let hintsUsedThisLevel = 0;
 let pendingInteract: string | null = null;
 let meterMode = false;
 let introWasActive = true;
+let hitStop = 0;
 const keys = new Set<string>();
 const labelsEl = $('labels');
 const pvLabelsEl = $('pvlabels');
@@ -138,7 +139,8 @@ function renderTitle() {
     const locked = i + 1 > progress.unlocked;
     b.className = `level-card ${locked ? 'locked' : ''} ${i === levelIdx ? 'sel' : ''}`;
     const st = progress.stars[i] ?? 0;
-    b.innerHTML = `<b>${L.index}. ${L.title}</b><small>${L.subtitle}</small><div class="st">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</div>`;
+    const ico = ['💡', '✨', '🚨', '⚙️', '⚡', '👑'][i] ?? '⚡';
+    b.innerHTML = `<span class="num">${L.index}</span><span class="ico">${ico}</span><b>${L.title}</b><small>${L.subtitle}</small><div class="st">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</div>${locked ? '<span class="lock">🔒</span>' : ''}`;
     b.onclick = () => {
       if (locked) return;
       sfx.unlock();
@@ -157,7 +159,7 @@ function showBrief() {
   $('briefTitle').textContent = L.title;
   $('briefSub').textContent = L.subtitle;
   $('briefText').textContent = BRIEFS[L.id] ?? L.concept;
-  $('briefGoal').textContent = `המטרה: ${L.exhibits.map((e) => e.name).join(', ')} ← ואז ליציאה`;
+  $('briefGoal').innerHTML = `המטרה: <b>${L.exhibits.map((e) => e.name).join(', ')}</b> ← ואז ליציאה<div class="stars-goal"><span><b>★</b> לצאת עם המוצג</span><span><b>★</b> רוח רפאים: אף אחד לא שם לב אליכם</span><span><b>★</b> מהר: מתחת ל-<bdi dir="ltr">${fmtTime(L.parSeconds)}</bdi></span></div>`;
   setScreen('brief');
 }
 
@@ -259,17 +261,25 @@ function updateHud() {
   updateBag();
 }
 
+/** Bag slots keep a stable order (the level's starting bag); empty kinds stay as ghosts so nothing jumps under the cursor. */
+function bagCounts() {
+  const order: ItemKind[] = [];
+  for (const it of [...game.level.bag, ...game.state.bag]) if (!order.includes(it)) order.push(it);
+  const counts = new Map<ItemKind, number>(order.map((k) => [k, 0]));
+  for (const it of game.state.bag) counts.set(it, (counts.get(it) ?? 0) + 1);
+  return counts;
+}
+
 function updateBag(force = false) {
   const key = game.state.bag.join(',');
   if (!force && key === lastBag) return;
   lastBag = key;
-  const counts = new Map<ItemKind, number>();
-  for (const it of game.state.bag) counts.set(it, (counts.get(it) ?? 0) + 1);
+  const counts = bagCounts();
   const bag = $('bag');
   bag.innerHTML = counts.size ? '' : '<span class="empty">התיק ריק</span>';
   for (const [it, n] of counts) {
     const d = document.createElement('div');
-    d.className = 'slot';
+    d.className = `slot ${n ? '' : 'ghost'}`;
     d.title = ITEMS[it].name;
     d.innerHTML = ITEM_SVG[it] + (n > 1 ? `<span class="cnt">×${n}</span>` : '');
     bag.appendChild(d);
@@ -283,6 +293,8 @@ function openPanelView(id: string) {
   panelView?.dispose();
   panelView = new PanelView(game, id, pvLabelsEl);
   meterMode = false;
+  lastSnap = snapDevices();
+  $('pvFeed').innerHTML = '';
   $('pvMeter').classList.remove('on');
   panelView.rebuild();
   $('panelui').classList.remove('hidden');
@@ -312,14 +324,14 @@ function closePanel() {
 
 function setPanelHelp() {
   const pv = panelView!;
-  let t = 'לחצו על רכיב או חוט כדי למדוד אותו. בחרו פריט מהתיק כדי לחבר אותו בין שני מחברים.';
+  let t = 'לחצו על רכיב או חוט כדי למדוד אותו. כדי לחבר: בחרו פריט מהתיק, ואז לחצו על חריץ או גררו בין שני מחברים.';
   if (pv.placingItem) {
     const spec = ITEMS[pv.placingItem];
     t = pv.pendingTerminal
       ? `עכשיו לחצו על המחבר השני כדי לחבר את ה${spec.name}.`
       : spec.element === 'battery'
         ? `לחצו על המחבר שיתחבר לקוטב השלילי (−) של ה${spec.name}.`
-        : `לחצו על מחבר נחושת ראשון לחיבור ה${spec.name}.`;
+        : `לחצו על חריץ מסומן, או גררו מחבר נחושת אל מחבר אחר, כדי לחבר את ה${spec.name}.`;
   }
   $('pvHelp').textContent = t;
 }
@@ -329,12 +341,12 @@ function renderPanelBag() {
   if (!pv) return;
   const wrap = $('pvBag');
   wrap.innerHTML = '';
-  const counts = new Map<ItemKind, number>();
-  for (const it of game.state.bag) counts.set(it, (counts.get(it) ?? 0) + 1);
+  const counts = bagCounts();
   if (!counts.size) wrap.innerHTML = '<span class="empty" style="color:var(--dim);padding:10px">ריק</span>';
   for (const [it, n] of counts) {
     const d = document.createElement('button');
-    d.className = `slot ${pv.placingItem === it ? 'sel' : ''}`;
+    d.className = `slot ${pv.placingItem === it ? 'sel' : ''} ${n ? '' : 'ghost'}`;
+    d.disabled = n === 0;
     d.innerHTML = ITEM_SVG[it] + `<small>${ITEMS[it].name}</small>` + (n > 1 ? `<span class="cnt">×${n}</span>` : '');
     d.onclick = () => {
       sfx.click();
@@ -367,7 +379,7 @@ function renderInspector() {
   const cutBtn = $<HTMLButtonElement>('pvCut');
   cutBtn.disabled = true;
   cutBtn.innerHTML = '<span>✂</span>חתוך';
-  if (!sel || sel.type === 'terminal') {
+  if (!sel || sel.type === 'terminal' || sel.type === 'slot') {
     const lines = game
       .panel(pv.panel.id)
       .circuits.map((cid) => {
@@ -456,7 +468,16 @@ function doCut() {
 function afterPanelChange() {
   const pv = panelView;
   if (!pv) return;
-  processEvents(game.drainEvents());
+  const evs = game.drainEvents();
+  for (const e of evs) {
+    if ((e.type === 'snip' || e.type === 'join' || e.type === 'place' || e.type === 'fuseReplaced') && e.id) pv.sparkAt(e.id);
+    if (e.type === 'fuseBlown' && e.id) {
+      pv.sparkAt(e.id);
+      pv.sparkAt(e.id);
+    }
+  }
+  processEvents(evs);
+  reportEffects();
   if (!panelView) return;
   pv.rebuild();
   renderPanelBag();
@@ -464,40 +485,82 @@ function afterPanelChange() {
   setPanelHelp();
 }
 
+function placeBetween(circuit: string, a: string, b: string) {
+  const pv = panelView!;
+  const id = game.placeItem(pv.placingItem!, circuit, a, b);
+  pv.pendingTerminal = null;
+  pv.placingItem = null;
+  pv.setDrag(null);
+  if (id) pv.selection = { type: 'placed', id, circuit };
+  afterPanelChange();
+}
+
 function panelClick(ndcX: number, ndcY: number) {
   const pv = panelView!;
   const pick = pv.pick(ndcX, ndcY);
   if (pv.placingItem) {
+    if (pick?.type === 'slot') return placeBetween(pick.circuit, pick.a, pick.b);
     if (pick?.type === 'terminal') {
-      if (!pv.pendingTerminal) {
-        pv.pendingTerminal = { circuit: pick.circuit, node: pick.node };
-        sfx.click();
-      } else if (pv.pendingTerminal.circuit === pick.circuit && pv.pendingTerminal.node !== pick.node) {
-        const id = game.placeItem(pv.placingItem, pick.circuit, pv.pendingTerminal.node, pick.node);
-        pv.pendingTerminal = null;
-        pv.placingItem = null;
-        if (id) pv.selection = { type: 'placed', id, circuit: pick.circuit };
-        afterPanelChange();
-        return;
-      } else {
-        pv.pendingTerminal = { circuit: pick.circuit, node: pick.node };
-      }
+      if (pv.pendingTerminal && pv.pendingTerminal.circuit === pick.circuit && pv.pendingTerminal.node !== pick.node) return placeBetween(pick.circuit, pv.pendingTerminal.node, pick.node);
+      pv.pendingTerminal = { circuit: pick.circuit, node: pick.node };
+      sfx.click();
       setPanelHelp();
       return;
     }
     pv.placingItem = null;
     pv.pendingTerminal = null;
+    pv.setDrag(null);
     renderPanelBag();
     setPanelHelp();
   }
-  if (pick?.type === 'terminal') {
-    showToast('בחרו קודם פריט מהתיק, ואז שני מחברים.', false, 3000);
+  if (pick?.type === 'terminal' || pick?.type === 'slot') {
+    showToast('בחרו קודם פריט מהתיק — ואז לחצו על החריץ, או על שני מחברים.', false, 3000);
     return;
   }
   pv.selection = pick;
   sfx.click();
   pv.rebuild();
   renderInspector();
+}
+
+/** What changed in the building after a rewire — shown as a feed so every action has a visible payoff. */
+type Snap = Map<string, { on: boolean; strain: boolean }>;
+let lastSnap: Snap = new Map();
+function snapDevices(): Snap {
+  return new Map([...game.devices.values()].map((d) => [d.id, { on: d.on, strain: !!d.strain }]));
+}
+function partLabel(partId: string) {
+  return game.level.circuits.flatMap((c) => c.parts).find((p) => p.id === partId)?.label ?? '';
+}
+function reportEffects() {
+  const now = snapDevices();
+  const lines: { icon: string; text: string; tone: 'good' | 'bad' | 'info' }[] = [];
+  for (const d of game.level.devices) {
+    const a = lastSnap.get(d.id);
+    const b = now.get(d.id)!;
+    if (!a) continue;
+    const label = d.kind === 'door' ? d.label : partLabel(d.part);
+    if (a.on !== b.on) {
+      if (d.kind === 'lamp') lines.push({ icon: '💡', text: `${label} ${b.on ? 'נדלקה' : 'כבתה'}`, tone: 'info' });
+      else if (d.kind === 'camera') lines.push({ icon: '📷', text: `${label}: ${b.on ? 'חזרה לפעול' : 'כבויה'}`, tone: b.on ? 'bad' : 'good' });
+      else if (d.kind === 'laser') lines.push({ icon: '🔴', text: `${label}: ${b.on ? 'דולק' : 'כבה'}`, tone: b.on ? 'bad' : 'good' });
+      else if (d.kind === 'door') lines.push({ icon: '🚪', text: `${label}: ${b.on ? 'נפתחת!' : 'נסגרת'}`, tone: b.on ? 'good' : 'info' });
+      else if (d.kind === 'alarm') lines.push({ icon: '🚨', text: b.on ? 'לולאת האזעקה שלמה' : 'לולאת האזעקה נקטעה!', tone: b.on ? 'good' : 'bad' });
+      else if (d.kind === 'hazard') lines.push({ icon: '⚡', text: b.on ? 'הכבל החשוף חי — מסוכן!' : 'הכבל החשוף בלי מתח', tone: b.on ? 'bad' : 'good' });
+    }
+    if (d.kind === 'door' && b.strain && !a.strain) lines.push({ icon: '🚪', text: `${label}: המנוע מזמזם — חסר זרם`, tone: 'bad' });
+  }
+  lastSnap = now;
+  const feed = $('pvFeed');
+  for (const l of lines) {
+    const el = document.createElement('div');
+    el.className = `feed ${l.tone}`;
+    el.innerHTML = `<span>${l.icon}</span>${l.text}`;
+    feed.prepend(el);
+    window.setTimeout(() => el.classList.add('out'), 3600);
+    window.setTimeout(() => el.remove(), 4200);
+  }
+  while (feed.children.length > 4) feed.lastElementChild!.remove();
 }
 
 // ───────────────────────────── events → sound, fx, screens
@@ -557,6 +620,8 @@ function processEvents(events: GameEvent[]) {
         break;
       case 'steal':
         sfx.steal();
+        hitStop = settings.reduced ? 0 : 0.18;
+        showToast('יש! עכשיו לצאת בשקט ← היציאה מסומנת', false, 2600);
         break;
       case 'guardHunt':
         showToast('הנתיך החדש נשרף שוב — השומר יוצא לחפש את הקצר! עוד מעט החשמל יחזור.', false, 5000);
@@ -692,12 +757,23 @@ function toggleMute() {
 }
 
 let downAt: { x: number; y: number; t: number } | null = null;
+let dragFrom: { circuit: string; node: string } | null = null;
+const ndcOf = (e: PointerEvent) => {
+  const r = canvas.getBoundingClientRect();
+  return [((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1] as const;
+};
 canvas.addEventListener('pointerdown', (e) => {
   sfx.unlock();
   downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+  dragFrom = null;
+  if (panelView?.placingItem) {
+    const pk = panelView.pick(...ndcOf(e));
+    if (pk?.type === 'terminal') dragFrom = { circuit: pk.circuit, node: pk.node };
+  }
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!panelView) return;
+  if (dragFrom && downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 12) panelView.setDrag(dragFrom, ...ndcOf(e));
   const r = canvas.getBoundingClientRect();
   const h = panelView.pick(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   const key = (p: PanelPick | null) => JSON.stringify(p);
@@ -708,6 +784,17 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 canvas.addEventListener('pointerup', (e) => {
+  if (panelView && dragFrom && downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 12) {
+    // finished dragging a wire from one terminal to another
+    const pk = panelView.pick(...ndcOf(e));
+    const from = dragFrom;
+    dragFrom = null;
+    downAt = null;
+    panelView.setDrag(null);
+    if (pk?.type === 'terminal' && pk.circuit === from.circuit && pk.node !== from.node) placeBetween(from.circuit, from.node, pk.node);
+    return;
+  }
+  dragFrom = null;
   if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 12) return;
   downAt = null;
   if (screen !== 'play') return;
@@ -889,7 +976,7 @@ function draw(dt: number) {
   scan += (want - scan) * Math.min(1, dt * 8);
   if (Math.abs(want - scan) < 0.01) scan = want;
   sfx.setHum(scan);
-  world.update(dt, { scanner: scan, reducedMotion: settings.reduced }, w, h);
+  world.update(dt, { scanner: scan, reducedMotion: settings.reduced, attract: screen === 'title' || screen === 'brief' }, w, h);
   bloom.strength = panelView ? 0.3 : 0.55 + scan * 0.35;
   if (panelView) {
     panelView.update(dt, w, h, settings.reduced);
@@ -922,7 +1009,12 @@ function draw(dt: number) {
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (!externalClock) tickSim(dt);
+  if (!externalClock) {
+    if (hitStop > 0) {
+      hitStop -= dt;
+      tickSim(dt * 0.08);
+    } else tickSim(dt);
+  }
   draw(dt);
   fpsAcc += dt;
   fpsN++;

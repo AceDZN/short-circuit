@@ -30,6 +30,8 @@ const LOW_H = 0.7;
 export interface ViewOptions {
   scanner: number; // 0..1 blend
   reducedMotion: boolean;
+  /** Title-screen attract mode: slow orbit around the level. */
+  attract?: boolean;
 }
 
 interface LampView {
@@ -67,6 +69,7 @@ export class WorldView {
   private yaw = Math.PI / 4;
   private zoom = 1;
   private endZoom = 1;
+  private attract = false;
   private camTarget = new THREE.Vector3();
   private shake = 0;
   private walls!: THREE.InstancedMesh;
@@ -724,7 +727,10 @@ export class WorldView {
     const t = this.game.state.thief;
     let want3 = new THREE.Vector3(t.x, 0, t.y);
     let rate = 5;
-    if (this.intro) {
+    if (this.attract) {
+      want3 = new THREE.Vector3(this.game.grid.w / 2, 0, this.game.grid.h / 2);
+      rate = 2;
+    } else if (this.intro) {
       const pt = this.intro.pts[this.intro.i];
       want3 = pt.pos;
       rate = 3.2;
@@ -743,11 +749,11 @@ export class WorldView {
     const k = snap ? 1 : 1 - Math.exp(-dt * rate);
     this.camTarget.lerp(want3, k);
     const want = this.yawFor(this.yawIndex);
-    this.yaw += angleLerp(this.yaw, want, snap ? 1 : 1 - Math.exp(-dt * 8));
+    if (!this.attract) this.yaw += angleLerp(this.yaw, want, snap ? 1 : 1 - Math.exp(-dt * 8));
     const aspect = this.camera.aspect || 1.6;
     // push in on the thief when the heist ends (busted or escaped)
     const ended = this.game.state.status !== 'playing';
-    this.endZoom += ((ended ? 0.55 : this.intro ? 1.25 : 1) - this.endZoom) * Math.min(1, dt * 2.5);
+    this.endZoom += ((ended ? 0.55 : this.attract ? 1.45 : this.intro ? 1.25 : 1) - this.endZoom) * Math.min(1, dt * 2.5);
     const dist = 23 * this.zoom * this.endZoom * Math.min(1.6, Math.max(1, 1.2 / aspect));
     const el = 0.92;
     const shake = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
@@ -768,6 +774,8 @@ export class WorldView {
 
   update(dt: number, opts: ViewOptions, w: number, h: number) {
     this.time += dt;
+    this.attract = !!opts.attract;
+    if (this.attract && !opts.reducedMotion) this.yaw += dt * 0.07;
     const game = this.game;
     const st = game.state;
     const scan = opts.scanner;
@@ -859,10 +867,19 @@ export class WorldView {
       const grp = this.exhibits.get(e.id)!;
       const stolen = !!st.stolen[e.id];
       if (stolen) {
-        // carried above the thief's backpack
-        grp.position.lerp(new THREE.Vector3(st.thief.x, 1.75, st.thief.y), Math.min(1, dt * 10));
-        grp.scale.setScalar(0.55);
-        grp.rotation.y += dt * 2;
+        // arc from the pedestal into the backpack, then ride on the thief's back
+        const k = (grp.userData.fly = Math.min(1, (grp.userData.fly ?? 0) + dt * 1.6));
+        const back = new THREE.Vector3(st.thief.x - Math.cos(st.thief.heading) * 0.32, 1.25, st.thief.y - Math.sin(st.thief.heading) * 0.32);
+        if (k < 1) {
+          const from = (grp.userData.from ??= grp.position.clone()) as THREE.Vector3;
+          grp.position.lerpVectors(from, back, k).setY(THREE.MathUtils.lerp(from.y, back.y, k) + Math.sin(k * Math.PI) * 1.6);
+          grp.scale.setScalar(1 - k * 0.65);
+          grp.rotation.y += dt * 9;
+        } else {
+          grp.position.copy(back);
+          grp.scale.setScalar(0.35);
+          grp.rotation.y = Math.PI / 2 - st.thief.heading;
+        }
       } else if (!opts.reducedMotion) grp.rotation.y += dt * 0.4;
       if (e.part) {
         const fil = grp.getObjectByName('filament') as THREE.Mesh | undefined;

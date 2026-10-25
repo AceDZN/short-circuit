@@ -197,3 +197,33 @@ body.in-panel .hud-bottom, body.in-panel .hud-tools, body.in-panel .prompt, body
 .objmark.exit.edge .arr { border-left-color: var(--green); }
 @keyframes bob { 50% { margin-top: -5px; } }
 .intro-cap span { display: inline-block; font-size: 26px; font-weight: 900; color: #fff; background: rgba(8, 10, 24, 0.8); border: 2px solid var(--yellow); border-radius: 14px; padding: 6px 18px; text-shadow: 0 0 10px rgba(255, 208, 74, 0.6); animation: pop 0.3s ease-out; white-space: nowrap; }
+
+/* panel effects feed */
+.pv-feed { position: absolute; top: 140px; left: 50%; transform: translateX(-30%); display: flex; flex-direction: column; gap: 6px; pointer-events: none; z-index: 2; }
+.feed { background: rgba(8, 10, 24, 0.9); border: 1.5px solid var(--cyan); border-radius: 12px; padding: 6px 14px; font-size: 17px; font-weight: 700; display: flex; gap: 8px; align-items: center; animation: feedIn 0.3s cubic-bezier(0.2, 1.6, 0.4, 1); transition: opacity 0.5s, transform 0.5s; white-space: nowrap; }
+.feed.good { border-color: var(--green); box-shadow: 0 0 14px rgba(93, 255, 149, 0.35); }
+.feed.bad { border-color: var(--red); box-shadow: 0 0 14px rgba(255, 59, 74, 0.4); }
+.feed.out { opacity: 0; transform: translateY(-8px); }
+@keyframes feedIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (max-width: 760px) { .pv-feed { top: 120px; transform: translateX(-50%); } .feed { font-size: 14px; } }
+.slot.ghost { opacity: 0.28; filter: grayscale(1); cursor: default; }
+.pv-bag-items .slot:not(.ghost):hover { border-color: var(--cyan); transform: translateY(-2px); }
+.pv-bag-items .slot { transition: transform 0.12s, border-color 0.12s; }
+
+/* title: the museum orbits behind a light overlay */
+#scrTitle { background: radial-gradient(ellipse at 50% 40%, rgba(6, 6, 18, 0.05), rgba(3, 3, 10, 0.75) 75%); align-items: stretch; }
+#scrTitle .title-card { background: transparent; border: 0; box-shadow: none; width: min(1100px, 100%); display: flex; flex-direction: column; align-items: center; justify-content: space-between; min-height: calc(100vh - 32px); padding: 4vh 10px 2vh; }
+.logo { animation: neon 6s infinite; }
+@keyframes neon { 0%, 18%, 22%, 62%, 64%, 100% { opacity: 1; } 20%, 63% { opacity: 0.55; text-shadow: none; } }
+.tagline { background: rgba(8, 10, 24, 0.6); border-radius: 14px; padding: 10px 16px; }
+.level-grid { grid-template-columns: repeat(6, 1fr); width: 100%; }
+.level-card { background: rgba(14, 18, 40, 0.86); display: flex; flex-direction: column; gap: 4px; min-height: 118px; position: relative; overflow: hidden; transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s; }
+.level-card:hover:not(.locked) { transform: translateY(-4px); border-color: var(--cyan); box-shadow: 0 8px 24px rgba(56, 232, 255, 0.25); }
+.level-card.sel { border-color: var(--yellow); box-shadow: 0 0 22px rgba(255, 208, 74, 0.45); }
+.level-card .num { position: absolute; left: 8px; bottom: -14px; font-size: 64px; font-weight: 900; color: rgba(255, 255, 255, 0.06); }
+.level-card .ico { font-size: 24px; }
+.level-card .lock { position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; background: rgba(3, 3, 10, 0.55); }
+.title-bottom { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.brief-goal .stars-goal { display: flex; flex-direction: column; gap: 4px; text-align: right; margin-top: 8px; color: var(--dim); }
+.brief-goal .stars-goal b { color: var(--yellow); }
+@media (max-width: 760px) { .level-grid { grid-template-columns: repeat(3, 1fr); } .level-card { min-height: 96px; } }
