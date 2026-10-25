@@ -81,8 +81,10 @@ const store = {
 };
 const progress = store.get<Progress>('short-circuit-progress', { unlocked: 1, stars: [] });
 if (params.has('all')) progress.unlocked = LEVELS.length;
-const settings = store.get('short-circuit-settings', { reduced: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false, muted: false });
+const settings = store.get('short-circuit-settings', { reduced: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false, muted: false, music: 0.7 });
+settings.music ??= 0.7;
 sfx.setMuted(settings.muted);
+sfx.setMusicVolume(settings.music);
 const learningLog: (LogEntry & { attempt: number; hinted: boolean })[] = store.get('short-circuit-log', []);
 function logEvent(e: LogEntry) {
   learningLog.push({ ...e, attempt: attempt, hinted: hintsUsedThisLevel > 0 });
@@ -137,8 +139,15 @@ function loadLevel(i: number) {
   hideToast();
 }
 
+function syncSettingsUi() {
+  ($('optMusic') as HTMLInputElement).value = String(settings.music);
+  ($('optMute') as HTMLInputElement).checked = settings.muted;
+  ($('optReduced2') as HTMLInputElement).checked = settings.reduced;
+}
+
 function setScreen(s: Screen) {
   screen = s;
+  if (s === 'pause') syncSettingsUi();
   for (const id of ['scrTitle', 'scrBrief', 'scrFail', 'scrWin', 'scrPause']) $(id).classList.add('hidden');
   const map: Partial<Record<Screen, string>> = { title: 'scrTitle', brief: 'scrBrief', fail: 'scrFail', win: 'scrWin', pause: 'scrPause' };
   if (map[s]) $(map[s]!).classList.remove('hidden');
@@ -947,6 +956,16 @@ $('btnMenu').addEventListener('click', () => {
   sfx.setSiren(false);
   loadLevel(levelIdx);
   setScreen('title');
+});
+($('optMusic') as HTMLInputElement).addEventListener('input', (e) => {
+  settings.music = Number((e.target as HTMLInputElement).value);
+  sfx.setMusicVolume(settings.music);
+  store.set('short-circuit-settings', settings);
+});
+($('optMute') as HTMLInputElement).addEventListener('change', () => toggleMute());
+($('optReduced2') as HTMLInputElement).addEventListener('change', (e) => {
+  settings.reduced = (e.target as HTMLInputElement).checked;
+  store.set('short-circuit-settings', settings);
 });
 ($('optReduced') as HTMLInputElement).addEventListener('change', (e) => {
   settings.reduced = (e.target as HTMLInputElement).checked;

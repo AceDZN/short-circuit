@@ -8,7 +8,7 @@ All 3D models were generated in **Tripo Studio** (https://studio.tripo3d.ai, the
 
 | File | Source task | Rig / clips | Size | Triangles | Facing | Height (bbox, glTF units) |
 |---|---|---|---|---|---|---|
-| `public/models/thief.glb` | image→3D `a1829d52-efd6-48bc-8fa8-22cfbb78875a` | Mixamo humanoid, 66 joints. Clips: `walk` (2.33 s), `idle` (15.33 s) | 1,351,468 B | 19,506 | **+Z** | **1.0** (x ±0.275, z ±0.126), feet at y=0 |
+| `public/models/thief.glb` | image→3D `a1829d52-efd6-48bc-8fa8-22cfbb78875a` | Mixamo humanoid, 66 joints. **v2 clips:** `walk` (2.33 s), `afraid` (2.58 s), `cheer` (12.08 s), `run` (1.25 s), `idle` (15.33 s) | 1,780,016 B | 19,506 | **+Z** | **1.0** (x ±0.275, z ±0.126), feet at y=0 |
 | `public/models/guard.glb` | image→3D `25a002f5-6366-46db-8123-74da1c34b142` | Mixamo humanoid, 65 joints. Clips: `frightened` (3.38 s), `walk` (2.33 s), `look_around` (15.58 s), `idle` (15.33 s) | 1,823,792 B | 19,760 | **+Z** | **1.0** (x ±0.338, z ±0.139), feet at y=0 |
 | `public/models/panel.glb` | image→3D `f8d65cb5-68b1-43f8-8c4f-3f833cbc47ba` | static | 619,864 B | 16,752 | door faces **+Z** | 1.0 (x ±0.268, z ±0.198), base at y=0 |
 | `public/models/exhibit-bulb.glb` | image→3D `96d713cd-ca44-4269-847b-41711d76546a` | static | 712,404 B | 19,567 | plaque faces **+Z** (round) | 1.0 (x ±0.304, z ±0.304), base at y=0 |

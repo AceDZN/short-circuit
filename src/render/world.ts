@@ -70,6 +70,7 @@ export class WorldView {
   private zoom = 1;
   private endZoom = 1;
   private attract = false;
+  private reduced = false;
   private camTarget = new THREE.Vector3();
   private shake = 0;
   private walls!: THREE.InstancedMesh;
@@ -767,6 +768,7 @@ export class WorldView {
   }
 
   bump(amount: number) {
+    if (this.reduced) return;
     this.shake = Math.max(this.shake, amount);
   }
 
@@ -775,6 +777,7 @@ export class WorldView {
   update(dt: number, opts: ViewOptions, w: number, h: number) {
     this.time += dt;
     this.attract = !!opts.attract;
+    this.reduced = opts.reducedMotion;
     if (this.attract && !opts.reducedMotion) this.yaw += dt * 0.07;
     const game = this.game;
     const st = game.state;
