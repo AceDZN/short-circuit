@@ -569,6 +569,7 @@ export class Game {
 
   private updateThief(dt: number) {
     const t = this.state.thief;
+    this.pushOut(t);
     let ix = this.moveIntent.x;
     let iy = this.moveIntent.y;
     if (ix || iy) t.path = [];
@@ -590,10 +591,10 @@ export class Game {
     ix /= Math.max(1, len);
     iy /= Math.max(1, len);
     const sp = (t.running ? RUN : WALK) * dt;
-    const nx = t.x + ix * sp;
-    if (!this.collides(nx, t.y)) t.x = nx;
-    const ny = t.y + iy * sp;
-    if (!this.collides(t.x, ny)) t.y = ny;
+    // move, then slide: walls push the body circle back out along their surface
+    t.x += ix * sp;
+    t.y += iy * sp;
+    this.pushOut(t);
     t.heading = Math.atan2(iy, ix);
     if (t.running && this.state.time - this.state.lastNoise > 0.5) {
       this.state.lastNoise = this.state.time;
@@ -601,16 +602,40 @@ export class Game {
     }
   }
 
-  private collides(x: number, y: number) {
+  /** Push the thief's body circle out of every blocked tile it overlaps (smooth sliding, rounded corners). */
+  private pushOut(t: { x: number; y: number }) {
     const r = THIEF_R;
-    for (const [cx, cy] of [
-      [x - r, y - r],
-      [x + r, y - r],
-      [x - r, y + r],
-      [x + r, y + r],
-    ])
-      if (!this.grid.walkable(Math.floor(cx), Math.floor(cy))) return true;
-    return false;
+    for (let iter = 0; iter < 4; iter++) {
+      let moved = false;
+      for (let ty = Math.floor(t.y - r) - 1; ty <= Math.floor(t.y + r) + 1; ty++)
+        for (let tx = Math.floor(t.x - r) - 1; tx <= Math.floor(t.x + r) + 1; tx++) {
+          if (this.grid.walkable(tx, ty)) continue;
+          const cx = Math.min(Math.max(t.x, tx), tx + 1);
+          const cy = Math.min(Math.max(t.y, ty), ty + 1);
+          const dx = t.x - cx;
+          const dy = t.y - cy;
+          const d = Math.hypot(dx, dy);
+          if (d >= r - 1e-6) continue;
+          moved = true;
+          if (d > 1e-6) {
+            t.x += (dx / d) * (r - d);
+            t.y += (dy / d) * (r - d);
+          } else {
+            // centre inside a blocked tile (e.g. a door shut on you): leave by the nearest open side
+            const opts: [number, number, number][] = [
+              [t.x - tx, -1, 0],
+              [tx + 1 - t.x, 1, 0],
+              [t.y - ty, 0, -1],
+              [ty + 1 - t.y, 0, 1],
+            ];
+            opts.sort((a, b) => a[0] - b[0]);
+            const best = opts.find(([, ox, oy]) => this.grid.walkable(tx + ox, ty + oy)) ?? opts[0];
+            t.x += best[1] * (best[0] + r);
+            t.y += best[2] * (best[0] + r);
+          }
+        }
+      if (!moved) break;
+    }
   }
 
   private makeNoise(x: number, y: number, radius = NOISE_R) {

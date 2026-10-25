@@ -270,3 +270,4 @@ body.in-panel .hud-tr .goals, body.in-panel .step-line { display: none; }
 .level-card .lock { inset: auto; top: 6px; left: 6px; width: 28px; height: 28px; font-size: 16px; border-radius: 8px; background: rgba(3, 3, 10, 0.75); }
 .pv-slot.dead { color: #a0a6b8; border-color: #6a7080; }
 body.in-panel .toast { top: auto; bottom: 120px; }
+.pause-why { background: rgba(255, 208, 74, 0.12); border: 1.5px solid var(--yellow); border-radius: 12px; padding: 10px 14px; font-size: 16px !important; }

@@ -73,6 +73,14 @@ The critic played the live build at 1440×900 and 390×844. It found 18 issues; 
 | Title lock covered names; Hebrew grammar | Corner lock badge; definite item names ("כפפת הגומי"); "!!" shown as ❗. |
 | Flat steal moment | Hit-stop, camera punch-in, the exhibit arcs into the backpack, a dashed green route to the exit. |
 
+## Movement fix (user report: "going through walls, getting stuck")
+
+- **Cause 1 — camera:** the 45° diamond view made WASD (screen-relative) walk diagonally across the grid, so you scraped along walls at odd angles and wedged into corners. The camera is now an axis-aligned 3/4 view (still rotatable in 90° steps): W walks straight up a corridor.
+- **Cause 2 — collision:** the body was a square that blocked a whole axis on contact and could be trapped when a door or window shut on its edge. It's now a circle pushed out of walls every step (smooth sliding, rounded corners, pushed clear of a closing door).
+- **Cause 3 — keyboard focus:** keys typed while the game didn't have focus went elsewhere (e.g. a chat box). The game now pauses on focus loss and says so.
+- **Visibility:** characters hidden behind a wall show an x-ray silhouette (cyan thief, amber guards); furniture doesn't trigger it.
+- **Verified:** 18 fuzz runs (6 heists × 3 seeds × 6,000 steps of random walking: the body never overlaps a wall), a door-closing regression test, a diagonal-slide test, and real held-key sessions in every heist (`scripts/walkcheck.mjs`: D/W/A/S move right/up/left/down, stopping cleanly at walls). 95 tests pass.
+
 ## Known limits
 
 - No sneak/crouch or pointing clip exists in Tripo's preset library (AI Animation not used). The Tesla coil, dynamo, security camera and reception desk are now Tripo models; the crown and Volta pile remain procedural.

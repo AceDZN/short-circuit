@@ -14,6 +14,40 @@ export interface Actor {
   usesModel: boolean;
 }
 
+// ───────────────────────── x-ray silhouettes
+
+/**
+ * Give every mesh of a character a twin that draws only where the character is hidden
+ * (depth test "greater"), so you can always see where you and the guards are behind walls.
+ * Twins render just before the character, so the visible parts overwrite them.
+ */
+export function addSilhouette(root: THREE.Object3D, color: number) {
+  // opaque on purpose: it must render in the opaque pass, after walls and before the character
+  const mat = new THREE.MeshBasicMaterial({ color, depthFunc: THREE.GreaterDepth, depthWrite: false });
+  const meshes: THREE.Mesh[] = [];
+  root.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh && !o.userData.silhouette) meshes.push(o as THREE.Mesh);
+  });
+  for (const m of meshes) {
+    let twin: THREE.Mesh;
+    if ((m as THREE.SkinnedMesh).isSkinnedMesh) {
+      const sm = m as THREE.SkinnedMesh;
+      const t = new THREE.SkinnedMesh(sm.geometry, mat);
+      t.bind(sm.skeleton, sm.bindMatrix);
+      t.bindMode = sm.bindMode;
+      twin = t;
+    } else twin = new THREE.Mesh(m.geometry, mat);
+    twin.userData.silhouette = true;
+    twin.position.copy(m.position);
+    twin.quaternion.copy(m.quaternion);
+    twin.scale.copy(m.scale);
+    twin.renderOrder = 1;
+    twin.frustumCulled = false;
+    m.renderOrder = 2;
+    m.parent!.add(twin);
+  }
+}
+
 // ───────────────────────── GLB cache
 
 const loader = new GLTFLoader();
@@ -267,6 +301,8 @@ export function createActor(kind: 'thief' | 'guard', onSwap?: (a: Actor) => void
   holder.add(lampAnchor);
   const syncAnchor = () => lampAnchor.position.copy(inner.lampAnchor.position).multiplyScalar(inner.root.scale.x);
   syncAnchor();
+  const silColor = kind === 'thief' ? 0x1f9fb8 : 0xb8781f;
+  addSilhouette(inner.root, silColor);
   const actor: Actor = {
     root: holder,
     lampAnchor,
@@ -283,6 +319,7 @@ export function createActor(kind: 'thief' | 'guard', onSwap?: (a: Actor) => void
     if (!g || !g.animations.length) return;
     const meta = MODEL_META[kind];
     const next = glbActor(g, meta.height, meta.yaw, meta.stride);
+    addSilhouette(next.root, silColor);
     holder.remove(inner.root);
     inner = next;
     holder.add(next.root);

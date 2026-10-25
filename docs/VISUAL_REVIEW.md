@@ -16,7 +16,7 @@ Other heists: [2](captures/actual-heist2.png) · [4](captures/actual-heist4.png)
 
 | Aspect | Target | Actual | Verdict |
 |---|---|---|---|
-| Camera | High isometric 3/4 view, cut-away room, whole lobby visible | Perspective 32° FOV at ~53° elevation, 45° yaw, cut-away walls lowered on the camera side, rotates in 90° steps (Z/X) | Matches. The real camera is a little closer so characters stay readable. |
+| Camera | High isometric 3/4 view, cut-away room, whole lobby visible | Perspective 32° FOV at ~56° elevation, axis-aligned (walls run straight across the screen), cut-away walls lowered on the camera side, rotates in 90° steps (Z/X) | Deliberate deviation: the mockup's 45° diamond view made screen-relative WASD fight the grid (player report: stuck / sliding), so the game uses an axis-aligned 3/4 view like Monaco. |
 | Silhouettes | Hooded thief with headlamp + cyan sneakers; chunky guard with cap at a desk | Tripo-generated, Mixamo-rigged thief (hoodie, backpack) and guard (cap, uniform), walk/idle clips playing; guard behind the reception desk | Matches the characters. The guard stands rather than sits (no sitting clip). |
 | Lighting | Indigo night, warm pools, moonlit windows | Warm chandelier pool and glow, indigo moon/hemisphere fill, moonlit window panes and sconces as wall decor, bloom | Close. The real scene is darker overall: deliberate, because light = danger has to read at a glance. |
 | Guard vision | Translucent yellow wedge | Wall-occluded vision fan (bright near/flashlight part + faint far part), turns red as the guard notices | Matches, and it's gameplay-accurate (raycast against walls). |

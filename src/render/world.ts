@@ -67,11 +67,12 @@ export class WorldView {
   readonly labels: Labels;
   readonly fx = new Particles();
   yawIndex = 0;
-  private yaw = Math.PI / 4;
+  private yaw = 0;
   private zoom = 1;
   private endZoom = 1;
   private doorVis: Record<string, number> = {};
   private deskTiles = new Map<string, THREE.Object3D>();
+  private pedestals: THREE.Object3D[] = [];
   private propGroups: { grp: THREE.Group; model: string }[] = [];
   private arcs: THREE.LineSegments[] = [];
   private arcT = 0;
@@ -247,6 +248,7 @@ export class WorldView {
           p.position.copy(tileCenter(x, y));
           makeStanchions(p);
           this.scene.add(p);
+          this.pedestals.push(p);
         } else if (c === 'W') {
           // low sill + frame; the pane is added with the window device
           const sill = new THREE.Mesh(new THREE.BoxGeometry(1, 0.9, 1), this.wallMat);
@@ -274,8 +276,8 @@ export class WorldView {
   private wallFront(x: number, y: number) {
     // Lower a wall when the floor right behind it (seen from the camera) would be hidden.
     const g = this.game.grid;
-    const sx = -Math.sign(Math.sin(this.yawFor(this.yawIndex)));
-    const sz = -Math.sign(Math.cos(this.yawFor(this.yawIndex)));
+    const sx = -Math.round(Math.sin(this.yawFor(this.yawIndex)));
+    const sz = -Math.round(Math.cos(this.yawFor(this.yawIndex)));
     const open = (c: string) => c !== '#' && c !== ' ';
     return open(g.at(x + sx, y)) || open(g.at(x, y + sz)) || open(g.at(x + sx, y + sz));
   }
@@ -573,9 +575,20 @@ export class WorldView {
         holder.position.set((xs + x1) / 2 + 0.5, 0, y + 0.5);
         const guardBehind = this.level.guards.find((gd) => gd.route.length === 1 && Math.abs(gd.route[0].y - y) === 1 && gd.route[0].x >= xs - 1 && gd.route[0].x <= x1 + 1);
         if (guardBehind && guardBehind.route[0].y > y) holder.rotation.y = Math.PI;
+        holder.traverse((o) => (o.renderOrder = 3));
         this.scene.add(holder);
       }
     }
+    this.furnitureAfterCharacters();
+  }
+
+  /** Furniture, pedestals and exhibits draw after the characters, so only walls trigger the x-ray silhouette. */
+  private furnitureAfterCharacters() {
+    const mark = (o: THREE.Object3D) => o.traverse((c) => ((c as THREE.Mesh).isMesh && c.renderOrder === 0 ? (c.renderOrder = 3) : null));
+    for (const d of this.deskTiles.values()) mark(d);
+    for (const g of this.exhibits.values()) mark(g);
+    for (const p of this.propGroups) mark(p.grp);
+    for (const p of this.pedestals) mark(p);
   }
 
   private makeFan(color: number, opacity: number) {
@@ -766,8 +779,9 @@ export class WorldView {
 
   // ───────────────────────── camera
 
+  /** Axis-aligned 3/4 view: walls run straight across the screen and W walks straight up a corridor. */
   private yawFor(i: number) {
-    return Math.PI / 4 + (i * Math.PI) / 2;
+    return (i * Math.PI) / 2;
   }
 
   /** Dotted patrol routes, shown in the overview map. */
@@ -855,6 +869,11 @@ export class WorldView {
     } else {
       // lead the camera a little in the direction the thief is moving
       if (t.moving) want3.add(new THREE.Vector3(Math.cos(t.heading), 0, Math.sin(t.heading)).multiplyScalar(1.2));
+      // keep the building on screen instead of the void around it
+      const g = this.game.grid;
+      const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v)));
+      want3.x = clamp(want3.x, 5, g.w - 5);
+      want3.z = clamp(want3.z, 3.5, g.h - 3.5);
     }
     const k = snap ? 1 : 1 - Math.exp(-dt * rate);
     this.camTarget.lerp(want3, k);
@@ -866,7 +885,7 @@ export class WorldView {
     this.punch = Math.max(0, this.punch - dt);
     this.endZoom += ((ended ? 0.55 : this.punch > 0 ? 0.78 : this.overview ? Math.max(this.game.grid.w, this.game.grid.h) / 13 : this.attract ? 1.45 : this.intro ? 1.25 : 1) - this.endZoom) * Math.min(1, dt * (this.overview ? 6 : 2.5));
     const dist = 26 * this.zoom * this.endZoom * Math.min(1.6, Math.max(1, 1.2 / aspect));
-    const el = 0.92;
+    const el = 0.98;
     const shake = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     this.camera.position.set(
       this.camTarget.x + Math.sin(this.yaw) * Math.cos(el) * dist + shake,
@@ -893,7 +912,7 @@ export class WorldView {
     const want = this.insetWant ?? new THREE.Vector3(st.thief.x, 0, st.thief.y);
     this.insetFocus.lerp(want, Math.min(1, dt * 4));
     const dist = 15;
-    const el = 0.92;
+    const el = 0.98;
     this.insetCam.position.set(this.insetFocus.x + Math.sin(this.yaw) * Math.cos(el) * dist, Math.sin(el) * dist, this.insetFocus.z + Math.cos(this.yaw) * Math.cos(el) * dist);
     this.insetCam.lookAt(this.insetFocus.x, 0.5, this.insetFocus.z);
   }
@@ -915,6 +934,12 @@ export class WorldView {
     const scan = opts.scanner;
     // walls fade to dark glass in scanner mode
     this.wallMat.opacity = 1 - scan * 0.7;
+    // opaque walls (scanner off) let the x-ray silhouettes see what hides the characters
+    const glass = scan > 0.02;
+    if (this.wallMat.transparent !== glass) {
+      this.wallMat.transparent = glass;
+      this.wallMat.needsUpdate = true;
+    }
     this.wallMat.color.setRGB(1 - scan * 0.75, 1 - scan * 0.6, 1 - scan * 0.45);
     this.wallMat.depthWrite = scan < 0.5;
     (this.wallCaps.material as THREE.MeshBasicMaterial).opacity = 1 - scan * 0.6;

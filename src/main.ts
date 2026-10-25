@@ -165,6 +165,7 @@ function syncSettingsUi() {
 }
 
 function setScreen(s: Screen) {
+  if (s !== 'pause') $('pauseWhy').classList.add('hidden');
   screen = s;
   if (s === 'pause') syncSettingsUi();
   for (const id of ['scrTitle', 'scrBrief', 'scrFail', 'scrWin', 'scrPause']) $(id).classList.add('hidden');
@@ -898,6 +899,11 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('blur', () => {
   keys.clear();
   scannerHeld = false;
+  // keys are going somewhere else now (another window, a chat box): pause and say so
+  if (screen === 'play' && !externalClock && !panelView) {
+    $('pauseWhy').classList.remove('hidden');
+    setScreen('pause');
+  }
 });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && screen === 'play' && !externalClock) setScreen('pause');
