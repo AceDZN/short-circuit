@@ -51,6 +51,6 @@ Other heists: [2](captures/actual-heist2.png) · [4](captures/actual-heist4.png)
 ## Remaining deviations (honest list)
 
 - Rooms carry fewer props than the mockups (no benches, statues or staircases); walls are dressed with procedural paintings, banners, sconces, windows and plants.
-- No sitting or running clip for the thief: the Tripo run job stalled in the queue, so running plays the walk clip at 1.7× speed. There's no crouch or surrender clip either; hands-up is a procedural bone pose.
-- Scanner wires take straight ceiling routes rather than following walls.
+- The thief now has Tripo `run`, `afraid` (busted) and `cheer` clips; the desk guard sits (`sit`). There's still no crouch/sneak clip.
+- Scanner wires now run inside the walls (routed through wall tiles) and are revealed by an X-ray wave, closer to the mockup than before.
 - Captures were rendered with SwiftShader (about 9 fps). On the host GPU every heist runs at the 120 fps cap (`scripts/fps.mjs`).

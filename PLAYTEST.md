@@ -36,9 +36,21 @@ The reviewer read the Workbook snapshots, the solver, every level and every test
 - Phone size 375×812: HUD, panel view and tap-to-move work.
 - Tripo models confirmed in gameplay: thief and guard (rigged, walk/idle; the guard also plays look-around and frightened), panel, giant bulb, vault door.
 
+## Polish round (same day, after "make it perfect")
+
+Added and checked in the built-in browser and in GPU-headless Chromium:
+- Wall-routed scanner wires revealed by an expanding X-ray wave; device amp tags appear as the wave reaches them.
+- Intro flyover (exhibit → exit → thief, once per heist per session, skippable), objective markers pinned to the screen edge, a paused planning map (Q / 🗺) with guard patrol routes.
+- Guards: "?" meter over the head (slow suspicion, fast confirmation), a slow-motion beat at "!", searching where they last saw you, comic Hebrew lines, sitting at desks (Tripo `sit` clip) until something happens; the angry clip on alert.
+- Panel: clickable labelled slots, drag-to-wire with a rubber-band preview, sparks, an effects feed, device cards, stable bag slots. Checked by real clicks in heist 4 (12 V into its slot, then a resistor into its slot → 1.49 A, the motor strains).
+- Thief: Tripo `run`, `afraid` (caught) and `cheer` (escaped).
+- Fair checkpoint retries (wiring kept, guards back at their posts), close calls, live star goals, animated results with a rank, adaptive music and effects, touch joystick, pause settings, IBL lighting, vignette/grain, adaptive resolution.
+- Frame rate after the round: 111–120 fps in heists 1–4 and steady 120 fps in heists 5–6 during play (`scripts/fps.mjs`, M2 Max, 1600×900, DPR 1); the zoomed-out intro is the heaviest view.
+- 75 automated tests pass, including new ones for guard search and checkpoint fairness.
+
 ## Known limits
 
-- The thief has no run, crouch or surrender clip (Tripo run job stalled); see VISUAL_REVIEW.md.
+- No sneak/crouch or pointing clip exists in Tripo's preset library; AI Animation (20 credits each) and four new hero models (about 120 credits) were not affordable from the shared pool (25 credits left). The dynamo, crown, Volta pile and Tesla coil exhibits stay procedural.
 - Guards don't chase. Being seen fills a notice meter; at full you're caught.
 - Frame rate: 120 fps (vsync cap) in all six heists, headless Chromium on the M2 Max GPU at 1600×900 (`scripts/fps.mjs`). Low-end hardware not measured.
 - Not checked on a physical phone or tablet, or with a screen reader.
