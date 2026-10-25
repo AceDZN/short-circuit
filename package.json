@@ -1,0 +1,25 @@
+{
+  "name": "short-circuit",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Short Circuit — קצר: a 3D isometric night-heist game where every security device is a load on a real circuit (Hebrew, grade 8 science).",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5196 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4196 --strictPort",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/rubik": "5.3.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0",
+    "playwright": "1.61.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}
