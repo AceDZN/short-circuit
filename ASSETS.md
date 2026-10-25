@@ -129,9 +129,58 @@ Preset retargets were confirmed free again: Tripo shows no price on preset cards
 
 All clips are in-place (no root motion). `run` is a 1.25 s loop, so drive the movement speed in code (~3.5–4 m/s after scaling).
 
+## Third pass: 25 Oct 2026, afternoon (4 hero props, after the user's credit top-up)
+
+The user topped up Tripo credits and asked for the Tesla coil, security camera, dynamo and reception desk. The balance before the first submit was **9,315** (shared account; other crews were generating at the same time).
+
+**Flow:** a ChatGPT reference render (one chat, https://chatgpt.com/c/6addf480-e734-83eb-9b8b-54d874bd1cd3), then Tripo **image→3D** with the same shared settings as before (H3.1 "Best Quality", HD Model, 2K PBR texture, Triangle topology, 20,000 polycount, Ultra Mesh off). Every task showed **Generate 30** credits. Export was GLB at 1K texture (free).
+
+**Credits:** 4 × 30 = **120 displayed**. The desk submit moved the balance from 8,445 to 8,415, exactly 30. The other drops were larger because other crews were spending concurrently. **Balance after this pass: 8,415.**
+
+**Concurrency limit:** the account allows only a few concurrent tasks, and exports count as tasks. Twice, submitting while other crews' jobs were running opened an "Upgrade For More Concurrent Tasks" modal. I closed it without subscribing and retried once a slot freed.
+
+**Processing (all four):** `gltf-transform dedup` → `prune --keep-attributes true` → `webp --quality 85` (1024² WebP ×3: baseColor, normal, metallicRoughness). The raw meshes were already 13–19k tris, so no simplify was needed and every file is far under 1.5 MB. All four are a single node, single mesh and single material with **no node transforms**. Tripo normalizes the largest dimension to 1.0 with the base at y = 0. Verified with `gltf-transform inspect`, a GLB JSON check, and Blender 5.2 renders from glTF +Z, plus a camera side view and a top-down desk view.
+
+| File | Tripo task | Final size | Tris | Facing (verified) | bbox (glTF units, base y=0) | Suggested scale |
+|---|---|---|---|---|---|---|
+| `public/models/tesla-coil.glb` | `ae1db9c9-0b44-4e96-a1db-50aea812e3a4` | 800,276 B | 19,110 | plaque **+Z**; round, upright | x ±0.249, y 0–1.0, z ±0.249 | ×2.0 (≈2 m tall) |
+| `public/models/security-camera.glb` | `12b2777c-65e2-4070-aca5-c34bbe0f552e` | 639,492 B | 18,247 | **lens +Z**, wall plate at **−Z** (back face of the plate at z = −0.5) | x ±0.250, y 0–0.779, z ±0.500 | ×0.6 (≈0.6 m long). Place the plate on the wall: object z_min = wall surface |
+| `public/models/dynamo.glb` | `29668a16-8f96-40b8-99f6-960bec6653c3` | 620,220 B | 13,301 | plaque/front **+Z**, long axis along X (flywheel at +X) | x ±0.500, y 0–0.690, z ±0.207 | ×1.6 (≈1.6 m long, 1.1 m tall) |
+| `public/models/reception-desk.glb` | `11310881-8851-483f-8585-738470dff710` | 496,608 B | 12,999 | visitor front (wood slats) **+Z**; concave opening, monitor and lamp toward **−Z** (guard side) | x ±0.500, y 0–0.418, z ±0.312 | ×3.0 → 3.0 m wide, 1.25 m tall, 1.87 m deep |
+
+Triangle counts are the generated counts (19,110 / 18,247 / 13,301 / 12,999). Tripo's viewer showed the desk as 13,003 faces; the GLB has 12,999 triangles.
+
+### Tesla coil (`tesla-coil.glb`)
+- Reference: "Tesla Coil on Brass-Trimmed Pedestal.png", 1113×1413, sha256 `3a116f99872cdfad544283200d7a80cb86975c75d4439a4b4675e0ee6d792f28`. Prompt:
+  > Create an image: a single 3D game prop reference render for image-to-3D conversion (stylized PBR game asset in the style of a midnight science museum heist game, like Fortnite / Overwatch prop quality; 3/4 front view slightly from above, centered, whole object visible with margin, plain flat light-grey background, soft even studio lighting, no shadows on background, no text). Object: a museum Tesla coil exhibit about 2 m tall. A tall cylindrical secondary coil wound with shiny copper wire on a cream insulating tube, a large polished aluminium toroid (donut) on top, a thick spiral copper primary coil at the bottom, standing on a round dark-wood base with brass trim, a small brass museum plaque on the front of the base. Clean readable silhouette, no electric arcs.
+- Raw `~/Downloads/sc-tesla-raw.glb`: 1,282,352 B, sha256 `46942c546322b567bd323a6746f631ac26ee553967a23bb697cf125930851af2`.
+- Final sha256 `ed5054c56449efc57a8580153599c4eb33b04753d171841686fb2e86a7023073`.
+- Arcs and sparks are not in the mesh. Add them procedurally around the toroid at roughly y ≈ 0.9 of model height.
+
+### Security camera (`security-camera.glb`)
+- Reference: "Realistic Bullet Security Camera.png", 1536×1024, sha256 `fc5e1f67bc5cfdfa71ba1ae42b1353f62029ca51cea8647e68924563e32d4e5a`. Prompt:
+  > Great. Same reference-render style (plain flat light-grey background, centered, whole object visible, soft even lighting, no text), next prop: a wall-mounted CCTV security camera for the same game. Clean white/light-grey rounded bullet-style housing with a small sun hood, a dark glossy lens with a subtle blue reflection at the front, a small red LED next to the lens, mounted on a grey metal L-shaped wall bracket with a flat square wall plate and screws at the back. View: 3/4 view from the front-left, the lens pointing toward the viewer and slightly down, the wall plate at the back. Chunky, readable stylized silhouette.
+- Raw `~/Downloads/sc-camera-raw.glb`: 1,001,608 B, sha256 `42532d0390a5001fd132e9d1cb7af620ea73f7c703c0b14646d0ce29f587609d`.
+- Final sha256 `f7cf372aae3a68f57ed3799c99c966f8bff918aff922ef7fd6831e381edbd754`.
+- One mesh: the camera head cannot pan separately from the bracket. Sweep the whole model around the plate's vertical axis (yaw), or hide the generated head and add a procedural head. The red LED is baked into the texture; add a small emissive sprite at the lens for blinking. The sweep cone stays procedural.
+
+### Dynamo (`dynamo.glb`)
+- Reference: "Awaiting Image Description.png" (ChatGPT's auto title), 1536×1024, sha256 `abe9696e7ca58724e91bd590e9412866d53b3fddd39f0728d5932a2bf5cb3371`. Prompt:
+  > Excellent. Same reference-render style (plain flat light-grey background, centered, whole object visible, soft even lighting, no text), next prop: a vintage 1880s dynamo / electric generator museum exhibit, about 1.5 m long. Polished brass frame and fittings, a horizontal wound copper armature drum between two big curved dark-iron field magnets, a large black cast-iron spoked flywheel (about 1.2 m diameter) on one side, a leather drive belt pulley, brass brush holders, sitting on a heavy dark cast-iron base bolted to a low wooden museum plinth with a small brass plaque on the front. 3/4 front view slightly from above. Chunky, readable stylized silhouette.
+- Raw `~/Downloads/sc-dynamo-raw.glb`: 1,092,976 B, sha256 `7dca3f43c3158df177240c3b23f460d7ac1fe0d00aff8764d1f3756fa76ac132`.
+- Final sha256 `393c49206e0589bfc902f6c14304b2040c12e54beb6fcfc397747bc765a2b451`.
+- The flywheel is fused into the mesh and cannot spin. For a spinning wheel, overlay a procedural spoked wheel at the +X end.
+
+### Reception desk (`reception-desk.glb`)
+- Reference: "Elegant Curved Reception Desk.png", 1752×897, sha256 `d9399f8fc00dbd7271e73cbf6bd8652cc4debf71412fd642cb2623b679d1069f`. Prompt:
+  > Perfect. Same reference-render style (plain flat light-grey background, centered, whole object visible, soft even lighting, no text), last prop: a curved wooden museum night-reception desk, about 3 m wide and 1.1 m tall, gently curved (concave toward the back where the guard sits). Front panel of dark polished walnut wood with vertical slats and a thin brass trim band, a light-grey stone countertop. On the back working surface: a flat computer monitor facing the back, a keyboard, and a brass banker's desk lamp with a green glass shade. View: 3/4 view of the FRONT (visitor side), slightly from above, so the curved front panel faces the viewer and the monitor and lamp are visible from behind. Chunky, readable stylized silhouette, no chair, no people.
+- Raw `~/Downloads/sc-desk-raw.glb`: 886,936 B, sha256 `58e34d1d397d0ccd7d67804ce6bb9f6f68a7d9fd66a2cbc015c51be7a9688aa9`.
+- Final sha256 `f621cca7fc2ed555f3c6850c1feb8b0bbb7e45e8ed3d5734a2d0d6be793080a5`.
+- The desk came out as a deep U, close to a half ring when seen from above, rather than a gentle arc. Its depth is about 62% of its width, so at ×3.0 it is 1.87 m deep. Put the guard (`sit` clip) inside the U at about z ≈ −0.15 × scale. Ratio-wise, the countertop sits at about 1.25 m when the desk is scaled to 3 m wide, which is a bit tall. If it reads too tall, use a non-uniform y-scale of ~0.85. The lamp's green shade is baked; add a warm point light for the amber pool.
+
 ## Known gaps / follow-ups
 
-1. **New hero models not generated (credits).** Tesla coil (`tesla-coil.glb`), wall security camera (`security-camera.glb`, lens +Z), dynamo exhibit (`dynamo.glb`), and curved reception desk (`reception-desk.glb`, ~3 m wide, front +Z). Each costs ~30 credits as image→3D. The balance is 25, so at least ~120 is needed for all four. The ChatGPT reference-image → Tripo image→3D flow above is ready to reuse once credits exist.
+1. ~~New hero models not generated~~: done in the third pass (Tesla coil, security camera, dynamo, reception desk).
 2. No sneak/crouch or true surrender clip: AI Animation is 20 credits each, or keep these procedural.
 3. The bulb glass and the panel indicator lights are baked and opaque. The code overlays described above are needed for the scanner and alarm looks.
 
@@ -142,4 +191,8 @@ All clips are in-place (no root motion). `run` is a 1.25 s loop, so drive the mo
 - `panel.glb` replaces the procedural wall-panel box (fitted to 0.95 m); the cyan LED strip stays procedural so it can pulse when the panel is usable.
 - `exhibit-bulb.glb` is the heist-2 gem and the heist-5 exhibit (fitted to 1 m on a pedestal); its filament glow and halo are procedural and follow the solved current through the gem part.
 - `vault-door.glb` spans both vault-door tiles in heist 6 and rides the procedural motor-door slab up when the motor current is high enough.
+- `tesla-coil.glb` replaces every procedural Tesla coil (heist 3's exhibit and the lobby/gallery props), fitted to 1.35 m on its pedestal; arcs crackling from the top ring are procedural line bolts redrawn ~11×/s (slower with reduced motion).
+- `dynamo.glb` replaces the procedural dynamo (heist 4's exhibit and the lobby prop), fitted to 1.1 m.
+- `security-camera.glb` rides each camera's procedural sweeping head (the head and bracket are one mesh, so the whole camera sweeps), wall plate on the wall; a procedural red LED blinks while the camera is powered.
+- `reception-desk.glb` replaces each run of desk tiles in museum heists (heists 1 and 5), scaled per axis to the run (≈1 m tall, ≤1.4 m deep) with its front facing away from the seated guard.
 - No generated mesh is a collider or carries science state.

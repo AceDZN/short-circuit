@@ -73,6 +73,8 @@ export class WorldView {
   private doorVis: Record<string, number> = {};
   private deskTiles = new Map<string, THREE.Object3D>();
   private propGroups: { grp: THREE.Group; model: string }[] = [];
+  private arcs: THREE.LineSegments[] = [];
+  private arcT = 0;
   /** Camera for the panel's security-cam inset; it looks at whatever just changed. */
   readonly insetCam = new THREE.PerspectiveCamera(30, 1.6, 0.1, 200);
   private insetFocus = new THREE.Vector3();
@@ -511,14 +513,26 @@ export class WorldView {
         if (!(c as THREE.Sprite).isSprite) c.visible = false;
       });
       grp.add(m);
+      if (model === 'coil') {
+        const top = new THREE.Box3().setFromObject(m).max.y - grp.position.y;
+        grp.traverse((o) => {
+          if (o.name === 'halo') o.position.y = top - 0.15;
+        });
+        const arcs = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xc8a8ff, transparent: true, opacity: 0.9 }));
+        arcs.userData.top = top - 0.12;
+        arcs.name = 'arcs';
+        grp.add(arcs);
+        this.arcs.push(arcs);
+      }
     }
     // wall cameras: the Tripo camera rides the sweeping head; the procedural LED keeps blinking
     const cam = await loadModel('security-camera');
     if (cam)
       for (const [, c] of this.cams) {
         const m = cam.scene.clone();
-        fitTo(m, 0.6);
-        m.position.z += 0.05;
+        fitTo(m, 0.62);
+        m.position.z += 0.31; // the wall plate (back face) sits on the wall
+        c.head.rotation.x = 0.12;
         c.head.children.forEach((ch) => {
           if (ch !== c.led) ch.visible = false;
         });
@@ -545,7 +559,15 @@ export class WorldView {
         }
         const len = x1 - xs + 1;
         const m = desk.scene.clone();
-        fitTo(m, Math.max(1.2, len * 0.98));
+        // fit per axis: as wide as the desk tiles, counter height, not too deep
+        const box = new THREE.Box3().setFromObject(m);
+        const size = box.getSize(new THREE.Vector3());
+        m.scale.set((len * 0.98) / size.x, 1.05 / size.y, Math.min(1.4, len * 0.6) / size.z);
+        const c3 = box.getCenter(new THREE.Vector3());
+        m.position.set(-c3.x * m.scale.x, -box.min.y * m.scale.y, -c3.z * m.scale.z);
+        m.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
+        });
         const holder = new THREE.Group();
         holder.add(m);
         holder.position.set((xs + x1) / 2 + 0.5, 0, y + 0.5);
@@ -1143,6 +1165,32 @@ export class WorldView {
       }
     } else for (const w of this.wires) this.labels.hide(`amp-${w.device}`);
 
+    // Tesla-coil arcs: jagged bolts from the top ring, redrawn a few times a second
+    this.arcT -= dt;
+    if (this.arcT <= 0 && this.arcs.length) {
+      this.arcT = opts.reducedMotion ? 0.6 : 0.09;
+      for (const a of this.arcs) {
+        const top = a.userData.top as number;
+        const pts: number[] = [];
+        const bolts = 2 + Math.floor(Math.random() * 3);
+        for (let b = 0; b < bolts; b++) {
+          const ang = Math.random() * Math.PI * 2;
+          let px = Math.cos(ang) * 0.16;
+          let pz = Math.sin(ang) * 0.16;
+          let py = top;
+          for (let k = 0; k < 5; k++) {
+            const nx = px + Math.cos(ang) * 0.09 + (Math.random() - 0.5) * 0.08;
+            const nz = pz + Math.sin(ang) * 0.09 + (Math.random() - 0.5) * 0.08;
+            const ny = py + (Math.random() - 0.4) * 0.1;
+            pts.push(px, py, pz, nx, ny, nz);
+            px = nx;
+            pz = nz;
+            py = ny;
+          }
+        }
+        a.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      }
+    }
     this.fx.update(dt);
     this.updateInset(dt);
     if (this.exitLine) {
@@ -1221,8 +1269,8 @@ export class WorldView {
 /** Tripo models for exhibit kinds, and their fitted size (largest dimension, m). */
 const EXHIBIT_MODELS: Record<string, { file: string; size: number }> = {
   bulb: { file: 'exhibit-bulb', size: 1.0 },
-  coil: { file: 'tesla-coil', size: 1.25 },
-  generator: { file: 'dynamo', size: 1.0 },
+  coil: { file: 'tesla-coil', size: 1.35 },
+  generator: { file: 'dynamo', size: 1.1 },
 };
 
 function angleLerp(a: number, b: number, k: number) {

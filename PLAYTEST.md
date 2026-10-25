@@ -75,7 +75,7 @@ The critic played the live build at 1440×900 and 390×844. It found 18 issues; 
 
 ## Known limits
 
-- No sneak/crouch or pointing clip exists in Tripo's preset library; AI Animation (20 credits each) and four new hero models (about 120 credits) were not affordable from the shared pool (25 credits left). The dynamo, crown, Volta pile and Tesla coil exhibits stay procedural.
+- No sneak/crouch or pointing clip exists in Tripo's preset library (AI Animation not used). The Tesla coil, dynamo, security camera and reception desk are now Tripo models; the crown and Volta pile remain procedural.
 - Guards don't chase. Being seen fills a notice meter; at full you're caught.
 - Frame rate: 120 fps (vsync cap) in all six heists, headless Chromium on the M2 Max GPU at 1600×900 (`scripts/fps.mjs`). Low-end hardware not measured.
 - Not checked on a physical phone or tablet, or with a screen reader.

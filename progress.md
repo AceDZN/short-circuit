@@ -20,9 +20,13 @@
 - Scanner X-ray wave + wall-routed wires, intro flyover, objective markers, planning map, guard "?" meters / search / lines / sitting, close calls, slow-mo "!", hit-stop steal, adaptive music, panel slots / drag / feed / device cards / gauge, IBL lighting, adaptive resolution, touch joystick, pause settings.
 - Independent UX critique: 18 findings, all addressed (see PLAYTEST.md).
 
+## Hero models (after the credit top-up)
+
+- Tripo generated the Tesla coil, security camera, dynamo and reception desk (4 × 30 credits). Integrated in every heist that uses them, with procedural Tesla arcs and blinking camera LEDs; procedural versions remain as fallbacks.
+
 ## Next (not done)
 
 - Real playtests with grade-8 students (fun and learning are unverified).
 - Give "current is used up" and "the fuse is in parallel" a consequence of their own.
-- New Tripo hero models (Tesla coil, security camera, dynamo, reception desk) and AI-animated sneak/point clips once Tripo credits are topped up.
+- AI-animated sneak/point clips (Tripo AI Animation).
 - Wire routing that hugs walls in the scanner; more props per room.
