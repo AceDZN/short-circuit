@@ -71,6 +71,8 @@ export class WorldView {
   private zoom = 1;
   private endZoom = 1;
   private doorVis: Record<string, number> = {};
+  private deskTiles = new Map<string, THREE.Object3D>();
+  private propGroups: { grp: THREE.Group; model: string }[] = [];
   /** Camera for the panel's security-cam inset; it looks at whatever just changed. */
   readonly insetCam = new THREE.PerspectiveCamera(30, 1.6, 0.1, 200);
   private insetFocus = new THREE.Vector3();
@@ -237,6 +239,7 @@ export class WorldView {
           const d = theme === 'courtyard' ? makePlanter() : makeDesk(x, y);
           d.position.copy(tileCenter(x, y));
           this.scene.add(d);
+          this.deskTiles.set(`${x},${y}`, d);
         } else if (c === 'g') {
           const p = makePedestal();
           p.position.copy(tileCenter(x, y));
@@ -455,17 +458,7 @@ export class WorldView {
       const grp = makeExhibit(p.model);
       grp.position.copy(tileCenter(p.tile[0], p.tile[1], this.game.grid.at(p.tile[0], p.tile[1]) === 'g' ? 0.9 : 0));
       this.scene.add(grp);
-      if (p.model === 'bulb') {
-        loadModel('exhibit-bulb').then((g) => {
-          if (!g) return;
-          const m = g.scene.clone();
-          fitTo(m, 1.0);
-          grp.children.forEach((c) => {
-            if (!(c as THREE.Sprite).isSprite) c.visible = false;
-          });
-          grp.add(m);
-        });
-      }
+      this.propGroups.push({ grp, model: p.model });
     }
   }
 
@@ -505,18 +498,61 @@ export class WorldView {
         grp.add(m);
       }
     }
-    for (const e of this.level.exhibits) {
-      const name = e.model === 'bulb' ? 'exhibit-bulb' : e.model === 'coil' ? 'tesla-coil' : null;
-      if (!name) continue;
-      const g = await loadModel(name);
-      const grp = this.exhibits.get(e.id);
-      if (!g || !grp) continue;
+    // exhibits (stealable and decorative) take their Tripo model when there is one
+    const groups = [...this.level.exhibits.map((e) => ({ grp: this.exhibits.get(e.id)!, model: e.model as string })), ...this.propGroups];
+    for (const { grp, model } of groups) {
+      const spec = EXHIBIT_MODELS[model];
+      if (!spec || !grp) continue;
+      const g = await loadModel(spec.file);
+      if (!g) continue;
       const m = g.scene.clone();
-      fitTo(m, 1.0);
+      fitTo(m, spec.size);
       grp.children.forEach((c) => {
         if (!(c as THREE.Sprite).isSprite) c.visible = false;
       });
       grp.add(m);
+    }
+    // wall cameras: the Tripo camera rides the sweeping head; the procedural LED keeps blinking
+    const cam = await loadModel('security-camera');
+    if (cam)
+      for (const [, c] of this.cams) {
+        const m = cam.scene.clone();
+        fitTo(m, 0.6);
+        m.position.z += 0.05;
+        c.head.children.forEach((ch) => {
+          if (ch !== c.led) ch.visible = false;
+        });
+        c.group.children.forEach((ch) => {
+          if (ch !== c.head) ch.visible = false;
+        });
+        c.led.position.set(0.1, 0.12, 0.42);
+        c.head.add(m);
+      }
+    // reception desks: one model per run of desk tiles, its front facing away from the guard behind it
+    const desk = this.level.theme === 'museum' ? await loadModel('reception-desk') : null;
+    if (desk) {
+      const seen = new Set<string>();
+      for (const key of this.deskTiles.keys()) {
+        if (seen.has(key)) continue;
+        const [x0, y] = key.split(',').map(Number);
+        let x1 = x0;
+        while (this.deskTiles.has(`${x1 + 1},${y}`)) x1++;
+        let xs = x0;
+        while (this.deskTiles.has(`${xs - 1},${y}`)) xs--;
+        for (let x = xs; x <= x1; x++) {
+          seen.add(`${x},${y}`);
+          this.deskTiles.get(`${x},${y}`)!.visible = false;
+        }
+        const len = x1 - xs + 1;
+        const m = desk.scene.clone();
+        fitTo(m, Math.max(1.2, len * 0.98));
+        const holder = new THREE.Group();
+        holder.add(m);
+        holder.position.set((xs + x1) / 2 + 0.5, 0, y + 0.5);
+        const guardBehind = this.level.guards.find((gd) => gd.route.length === 1 && Math.abs(gd.route[0].y - y) === 1 && gd.route[0].x >= xs - 1 && gd.route[0].x <= x1 + 1);
+        if (guardBehind && guardBehind.route[0].y > y) holder.rotation.y = Math.PI;
+        this.scene.add(holder);
+      }
     }
   }
 
@@ -1181,6 +1217,13 @@ export class WorldView {
     return [Math.floor(p.x), Math.floor(p.z)];
   }
 }
+
+/** Tripo models for exhibit kinds, and their fitted size (largest dimension, m). */
+const EXHIBIT_MODELS: Record<string, { file: string; size: number }> = {
+  bulb: { file: 'exhibit-bulb', size: 1.0 },
+  coil: { file: 'tesla-coil', size: 1.25 },
+  generator: { file: 'dynamo', size: 1.0 },
+};
 
 function angleLerp(a: number, b: number, k: number) {
   let d = (b - a) % (Math.PI * 2);
