@@ -60,4 +60,16 @@ describe('heist 2 — gallery (parallel vs series)', () => {
     b.wait(30);
     expect(b.s.fail?.reason).toBe('pedestal');
   });
+
+  it('regression: cutting the string first and stealing while the guard walks to fix it still gets caught', () => {
+    const b = enterGallery();
+    b.until((x) => x.guard('g2').x > 15 && x.guard('g2').y < 7);
+    b.route([5, 7]);
+    b.panel('pg', (x) => x.cut('cg_w0'));
+    b.route([10, 7]);
+    b.until((x) => x.guard('g2').mode === 'toPanel', 30);
+    if (b.ok) b.use().route([11, 4]);
+    b.wait(40);
+    expect(b.s.status).toBe('failed');
+  });
 });

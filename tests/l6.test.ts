@@ -19,7 +19,7 @@ describe('heist 6 — the vault (transfer: parallel bus, power budget, decoy loo
 
   it('parallel branches: total current is the sum of the branch currents', () => {
     const g = new Game(L6);
-    const sum = ['cv_las', 'cv_relay', 'cv_buzz', 'cv_cam'].reduce((a, p) => a + g.current(p), 0);
+    const sum = ['cv_las', 'cv_relay', 'cv_buzz', 'cv_cam', 'cv_post'].reduce((a, p) => a + g.current(p), 0);
     expect(g.current('cv_bat')).toBeCloseTo(sum, 4);
   });
 
@@ -41,15 +41,15 @@ describe('heist 6 — the vault (transfer: parallel bus, power budget, decoy loo
   it('"always short" trips the alarm', () => {
     const g = new Game(L6);
     g.state.panelOpen = 'pv';
-    g.placeItem('wire', 'cv', 'm1', 'u5');
+    g.placeItem('wire', 'cv', 'm1', 'u6');
     expect(g.state.fail?.reason).toBe('alarm');
   });
 
-  it('a resistor in the motor gap keeps the budget but starves the motor (12 V ÷ 9 Ω ≈ 1.3 A < 3 A)', () => {
+  it('a resistor in the motor gap keeps the budget but starves the motor (12 V ÷ 10 Ω ≈ 1.2 A < 2.5 A)', () => {
     const g = board(['cv_wl'], false);
     g.placeItem('res6', 'cv', 'm1', 'm2');
     expect(g.state.status).toBe('playing');
-    expect(g.current('cv_motor')).toBeCloseTo(12 / 9, 1);
+    expect(g.current('cv_motor')).toBeCloseTo(12 / 10, 1);
     expect(g.devices.get('vaultdoor')!.on).toBe(false);
   });
 
@@ -58,6 +58,29 @@ describe('heist 6 — the vault (transfer: parallel bus, power budget, decoy loo
     expect(g.state.status).toBe('playing');
     expect(g.current('cv_bat') * 12).toBeLessThan(60);
     expect(g.devices.get('vaultdoor')!.on).toBe(true);
+  });
+
+  it('"cut everything except the alarm loop" darkens the guard post and brings the guard to the panel', () => {
+    const b = new Bot(L6);
+    b.until((x) => x.guard('g1').x > 15);
+    b.panel('pv', (x) => {
+      for (const w of ['cv_wl', 'cv_wb', 'cv_wc', 'cv_wg']) x.cut(w);
+      x.place('wire', 'cv', 'm1', 'm2');
+    });
+    expect(b.s.status).toBe('playing');
+    b.wait(0.5);
+    expect(b.guard('g1').task?.kind).toBe('zone');
+  });
+
+  it('every branch set that fits under 5 A keeps loop A, the post light and the motor', () => {
+    const cuttable = ['cv_wl', 'cv_wb', 'cv_wc'];
+    const ok: string[] = [];
+    for (let m = 0; m < 8; m++) {
+      const cuts = cuttable.filter((_, i) => m & (1 << i));
+      const g = board(cuts);
+      if (g.state.status === 'playing' && g.devices.get('vaultdoor')!.on) ok.push(cuts.join('+'));
+    }
+    expect(ok.sort()).toEqual(['cv_wl+cv_wb', 'cv_wl+cv_wb+cv_wc'].sort());
   });
 
   it('full heist without hints', () => {

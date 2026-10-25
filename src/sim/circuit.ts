@@ -43,6 +43,8 @@ export interface Solution {
   results: Map<string, ElementResult>;
   /** Fuses that melted during this solve, in the order they blew. */
   blown: string[];
+  /** Current (A, magnitude) through each melted fuse just before it opened. */
+  blownCurrent: Record<string, number>;
 }
 
 function elementR(e: Element): number {
@@ -125,6 +127,7 @@ function solveLinear(elements: Element[], openSet: Set<string>) {
 export function solve(elements: Element[]): Solution {
   const openSet = new Set<string>();
   const blown: string[] = [];
+  const blownCurrent: Record<string, number> = {};
   for (let guard = 0; guard < elements.length + 1; guard++) {
     const sol = solveLinear(elements, openSet);
     let worst: Element | null = null;
@@ -137,11 +140,12 @@ export function solve(elements: Element[]): Solution {
         worst = e;
       }
     }
-    if (!worst) return { ...sol, blown };
+    if (!worst) return { ...sol, blown, blownCurrent };
+    blownCurrent[worst.id] = Math.abs(sol.results.get(worst.id)!.current);
     openSet.add(worst.id);
     blown.push(worst.id);
   }
-  return { ...solveLinear(elements, openSet), blown };
+  return { ...solveLinear(elements, openSet), blown, blownCurrent };
 }
 
 /** Gaussian elimination with partial pivoting. Mutates copies only. */

@@ -600,7 +600,7 @@ export class WorldView {
     // push in on the thief when the heist ends (busted or escaped)
     const ended = this.game.state.status !== 'playing';
     this.endZoom += ((ended ? 0.55 : 1) - this.endZoom) * Math.min(1, dt * 2.5);
-    const dist = 23 * this.zoom * this.endZoom * Math.max(1, 1.45 / aspect);
+    const dist = 23 * this.zoom * this.endZoom * Math.min(1.6, Math.max(1, 1.2 / aspect));
     const el = 0.92;
     const shake = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     this.camera.position.set(

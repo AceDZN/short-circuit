@@ -115,6 +115,8 @@ export class Game {
   private snapStart!: Snapshot;
   private snapCheckpoint: Snapshot | null = null;
   private acc = 0;
+  /** The most recent fuse that melted and the current that melted it. */
+  lastBlow: { part: string; current: number; t: number } | null = null;
   onLog?: (e: LogEntry) => void;
 
   constructor(level: LevelDef) {
@@ -250,6 +252,7 @@ export class Game {
     for (const id of this.solution.blown) {
       if (s.parts[id]) {
         s.parts[id].blown = true;
+        this.lastBlow = { part: id, current: this.solution.blownCurrent[id], t: s.time };
         if (!silent) this.fuseBlown(id);
       }
     }
@@ -276,6 +279,11 @@ export class Game {
         }
       }
       if (d.kind === 'window') on = !!s.windowsOpen[d.id];
+      if (d.kind === 'hazard' && d.liveNode && d.refNode) {
+        // Dangerous while the exposed conductor sits at a high voltage, current or not.
+        const cid = this.circuitOf.get(d.part)!.id;
+        on = Math.abs(this.nodeVoltage(cid, d.liveNode) - this.nodeVoltage(cid, d.refNode)) >= th;
+      }
       this.devices.set(d.id, { id: d.id, kind: d.kind, on, current: I, brightness: on ? Math.min(1.8, I / nominal) : 0, value, strain });
     }
     // An alarm loop reacts the instant its current stops, even mid-rewire.
@@ -499,6 +507,7 @@ export class Game {
     this.checkHazards(dt);
     this.checkCheckpoints();
     this.checkWin();
+    this.checkTrapped(dt);
     for (const g of s.guards)
       if (g.barkTimer > 0) {
         g.barkTimer -= dt;
@@ -851,6 +860,12 @@ export class Game {
         g.timer -= dt;
         if (g.timer > 0) return;
         const task = g.task!;
+        if (task.kind === 'fuse' && task.fusePart && !this.state.parts[task.fusePart].blown && this.panelOfPart(task.fusePart) === task.panel) {
+          // Someone already put a new fuse in. Nothing to fix here — he shrugs and goes back.
+          this.bark(g, '?');
+          this.goBack(g);
+          return;
+        }
         this.repairPanel(task.panel!);
         if (task.kind === 'fuse' && task.fusePart && this.state.parts[task.fusePart].blown) {
           // Still blown after his fix → the short is still there. He goes to look for it.
@@ -859,6 +874,7 @@ export class Game {
             g.task = { kind: 'fuse', panel: circuitPanel, fusePart: task.fusePart, point: this.panel(circuitPanel).front, attempt: task.attempt + 1 };
             g.mode = 'toPanel';
             this.bark(g, '?');
+            this.emit({ type: 'guardHunt', id: g.id, text: circuitPanel });
             this.guardPathTo(g, this.panel(circuitPanel).front);
             return;
           }
@@ -869,6 +885,17 @@ export class Game {
             g.task = { kind: 'fuse', panel: fp, fusePart: task.fusePart, point: this.panel(fp).front, attempt: task.attempt + 1 };
             g.mode = 'toPanel';
             this.guardPathTo(g, this.panel(fp).front);
+            return;
+          }
+        }
+        if (task.attempt < 1) {
+          // He fixed the panel but a room it feeds is still dark: he goes to see why.
+          const dark = this.level.zones.find(
+            (z) =>
+              this.level.devices.some((d) => d.kind === 'lamp' && d.zone === z.id && this.panelOfPart(d.part) === task.panel) && !this.computeZoneLit(z.id),
+          );
+          if (dark) {
+            this.assign(g, { kind: 'zone', zone: dark.id, point: dark.investigate, attempt: task.attempt + 1 }, 0.6);
             return;
           }
         }
@@ -974,6 +1001,23 @@ export class Game {
     }
     s.overheat = hot ? s.overheat + dt : 0;
     if (s.overheat > 1.2) this.failWith('fire');
+  }
+
+  private trappedT = 0;
+  private trapCheckT = 0;
+  /** Safety net: if a closed door ever cuts the thief off from the exit, the heist ends (and can be retried). */
+  private checkTrapped(dt: number) {
+    this.trapCheckT -= dt;
+    if (this.trapCheckT > 0) return;
+    this.trapCheckT = 1;
+    const t = this.state.thief;
+    const from: Tile = [Math.floor(t.x), Math.floor(t.y)];
+    const ok = (x: number, y: number) => this.grid.walkable(x, y) || this.grid.at(x, y) === 'W';
+    // Trapped = no way to the exit and no panel within reach to change anything.
+    const can = (to: Tile) => (from[0] === to[0] && from[1] === to[1]) || this.grid.path(from, to, ok) !== null;
+    const reachable = can(this.level.exit) || this.level.panels.some((p) => can(p.front));
+    this.trappedT = reachable ? 0 : this.trappedT + 1;
+    if (this.trappedT >= 3) this.failWith('trapped');
   }
 
   private checkCheckpoints() {

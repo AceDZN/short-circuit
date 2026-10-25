@@ -84,4 +84,22 @@ describe('heist 4 — motor door (Ohm law)', () => {
     b.route([10, 6], [20, 8], [21, 8]);
     expect(b.s.status).toBe('won');
   });
+
+  it('regression: fixing the fuse yourself means the arriving guard has nothing to repair (no softlock)', () => {
+    const b = new Bot(L4);
+    b.until((x) => x.guard('g1').x > 16 && x.guard('g1').y > 9);
+    b.panel('pd', (x) => {
+      x.place('bat12', 'cd', 'bp', 'bq');
+      const coin = x.place('coin', 'cd', 'r1', 'r2');
+      expect(b.s.parts.cd_fuse.blown).toBe(true);
+      b.g.pickupPlaced(coin);
+      x.place('res3', 'cd', 'r1', 'r2');
+      expect(b.g.replaceFuse('cd_fuse')).toBe(true);
+    });
+    expect(b.g.devices.get('vault')!.on).toBe(true);
+    b.wait(1.2).route([10, 3]);
+    b.waitGuard('g1', 'return', 40);
+    expect(b.s.placed.length).toBe(2);
+    expect(b.g.devices.get('vault')!.on).toBe(true);
+  });
 });

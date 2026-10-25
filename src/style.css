@@ -139,6 +139,13 @@ kbd { background: #1a1d33; border: 1px solid #3a4170; border-radius: 5px; paddin
 #screens .screen.see-through { background: rgba(3, 3, 10, 0.35); }
 
 @media (max-width: 760px) {
+  .hud-tr { top: 62px; right: 10px; left: 10px; align-items: stretch; }
+  .objective { max-width: none; }
+  .level-name { display: none; }
+  .chip.light { display: none; }
+  .hud-tl { top: 10px; left: 10px; }
+  .hud-tools { top: 112px; left: 10px; }
+  .toast { top: 160px; }
   .logo { font-size: 58px; }
   .level-grid { grid-template-columns: repeat(2, 1fr); }
   .objective { font-size: 15px; padding: 6px 10px; max-width: 60vw; }

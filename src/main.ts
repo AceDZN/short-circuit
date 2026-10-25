@@ -164,7 +164,7 @@ const BRIEFS: Record<string, string> = {
   l2: 'גלריית האורות: שרשרת נורות תצוגה סביב הנורה של אדיסון, ומסדרון מואר בשומר ערני. לא כל החוטים מחוברים באותה צורה — תסרקו לפני שאתם חותכים.',
   l3: 'אגף החלונות. כל חלון מחובר ללולאת אזעקה: כל עוד זרם זורם בה — שקט. אם הזרם נעצר אפילו לרגע — סירנה. איך פותחים חלון בלי לעצור את הזרם?',
   l4: 'דלת הכספת זזה רק עם מנוע חזק. יש לכם סוללות ונגדים בתיק. מעט מדי זרם — הדלת לא זזה. יותר מדי — הנתיך נשרף והשומר בא.',
-  l5: 'האגף המערבי מחובר לרשת החשמל, ונתיך אחד שומר עליו בחדר השומרים. שלולית מתחת לכבל חשוף חוסמת את הדרך. קצר מתוכנן היטב יכול לכבות הכול.',
+  l5: 'האגף המערבי מחובר לרשת החשמל, ונתיך אחד שומר עליו בחדר השומרים. שלולית מתחת לכבל חשוף חוסמת את הדרך. קצר מתוכנן היטב יכול לכבות הכול. (רק במשחק! במציאות קצר ברשת החשמל מסוכן מאוד — קשת חשמלית, כוויות ושריפה.)',
   l6: 'הכספת. בניין חדש, בלי רמזים. מתח אחד, נתיך ראשי אחד, הרבה מעגלים. תסרקו, תחשבו, ותצאו עם הכתר.',
 };
 
@@ -279,9 +279,9 @@ function updateBag(force = false) {
 function openPanelView(id: string) {
   panelView?.dispose();
   panelView = new PanelView(game, id, pvLabelsEl);
-  panelView.labels.clear();
-  panelView.rebuild();
   meterMode = false;
+  $('pvMeter').classList.remove('on');
+  panelView.rebuild();
   $('panelui').classList.remove('hidden');
   document.body.classList.add('in-panel');
   labelsEl.style.display = 'none';
@@ -506,6 +506,7 @@ const FAIL_TEXT: Record<FailReason, { stamp: string; lines: string[]; explain: s
   alarm: { stamp: 'אזעקה!', lines: ['ווי-וו-ווי-וו! כל השכונה התעוררה.', 'הסירנה צועקת. גם החתול של השכן.'], explain: 'לולאת האזעקה מחוברת בטור: כשהזרם נעצר בנקודה אחת — הוא נעצר בכל הלולאה, והבקר מפעיל אזעקה.' },
   pedestal: { stamp: 'התגלית!', lines: ['השומר: "רגע... איפה המוצג?!"', 'השומר מסתכל על הכן הריק. הכן הריק מסתכל עליו בחזרה.'], explain: 'השומר בא לבדוק למה החדר החשיך — וראה שהמוצג חסר.' },
   shock: { stamp: 'התחשמלות!', lines: ['זזזזט! השיער שלך עכשיו בסגנון "טסלה".', 'אאוץ׳! לפחות זה היה רק משחק.'], explain: 'מים מורידים מאוד את ההתנגדות של הגוף. לפי חוק אוהם I = V ÷ R: עור יבש ≈ 100,000Ω → 220V ÷ 100,000Ω ≈ 2 mA. עור רטוב ≈ 1,000Ω → 220V ÷ 1,000Ω = 220 mA — מסוכן מאוד.' },
+  trapped: { stamp: 'נלכדת!', lines: ['הדלת נסגרה מאחוריך. נוף יפה מבפנים, לא?', 'דלת סגורה, אין זרם במנוע — ואין יציאה.'], explain: 'דלת מנוע נשארת פתוחה רק כל עוד עובר במנוע מספיק זרם. כשהמעגל שלה נפתח, היא נסגרת.' },
   fire: { stamp: 'קצר!', lines: ['ריח של פלסטיק שרוף... והגלאי כבר מצפצף.', 'הכבלים התלהטו והעלו עשן. מכבי האש בדרך.'], explain: 'קצר = מסלול כמעט בלי התנגדות. הזרם עצום, החוטים מתחממים. בגלל זה שמים נתיך בטור.' },
 };
 
@@ -554,6 +555,9 @@ function processEvents(events: GameEvent[]) {
       case 'steal':
         sfx.steal();
         break;
+      case 'guardHunt':
+        showToast('הנתיך החדש נשרף שוב — השומר יוצא לחפש את הקצר! עוד מעט החשמל יחזור.', false, 5000);
+        break;
       case 'checkpoint':
         sfx.checkpoint();
         showToast('נקודת שמירה ✓', false, 1800);
@@ -583,7 +587,13 @@ function showFail(reason: FailReason) {
   const f = FAIL_TEXT[reason];
   $('failStamp').textContent = f.stamp;
   $('failLine').textContent = f.lines[Math.floor(Math.random() * f.lines.length)];
-  $('failExplain').textContent = game.level.explain[reason] ?? f.explain;
+  let explain = game.level.explain[reason] ?? f.explain;
+  const blow = game.lastBlow;
+  if (blow && game.state.time - blow.t < 3) {
+    const def = game.level.circuits.flatMap((c) => c.parts).find((p) => p.id === blow.part);
+    if (def?.rating) explain += ` הנתיך (${def.rating}A) נשרף כשהזרם בו הגיע ל-${blow.current >= 100 ? 'יותר מ-99' : blow.current.toFixed(1)}A.`;
+  }
+  $('failExplain').textContent = explain;
   $('btnRetry').textContent = game.hasCheckpoint() ? '↻ מנקודת השמירה' : '↻ נסו שוב';
   setScreen('fail');
 }
@@ -756,8 +766,11 @@ $('pvCut').addEventListener('click', doCut);
 $('pvMeter').addEventListener('click', () => {
   meterMode = !meterMode;
   $('pvMeter').classList.toggle('on', meterMode);
-  (panelView as unknown as { meter: boolean }).meter = meterMode;
-  showToast(meterMode ? 'מד זרם: לחצו על חוטים לפני ואחרי רכיב והשוו את הזרם.' : 'מד זרם כבוי.', false, 3500);
+  if (panelView) {
+    panelView.meter = meterMode;
+    panelView.rebuild();
+  }
+  showToast(meterMode ? 'מד זרם: עכשיו רואים את הזרם בכל חוט. השוו את הזרם לפני רכיב ואחריו.' : 'מד זרם כבוי.', false, 3500);
 });
 $('btnStart').addEventListener('click', () => {
   sfx.unlock();
@@ -923,7 +936,7 @@ window.advanceTime = (ms: number) => {
   externalClock = true;
   const steps = Math.max(1, Math.round(ms / (1000 / 60)));
   for (let i = 0; i < steps; i++) tickSim(1 / 60);
-  draw(ms / 1000 / steps);
+  draw(Math.min(0.5, ms / 1000));
 };
 // Debug handle for automated playtests (inputs only: same public actions a player has).
 window.__sc = {

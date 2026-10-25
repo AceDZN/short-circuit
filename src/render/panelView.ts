@@ -44,6 +44,8 @@ export class PanelView {
   selection: PanelPick | null = null;
   pendingTerminal: { circuit: string; node: string } | null = null;
   placingItem: ItemKind | null = null;
+  /** Ammeter mode: show the current on every wire too. */
+  meter = false;
   hover: PanelPick | null = null;
 
   constructor(game: Game, panelId: string, labelLayer: HTMLElement) {
@@ -268,7 +270,7 @@ export class PanelView {
       this.addFlow(p.id, new THREE.LineCurve3(from.clone().setZ(0.016), to.clone().setZ(0.016)), c.color, mat);
     }
     // labels: loads and sources always; wires only when cut or selected
-    if (!isWire || ps.open || sel) {
+    if (!isWire || ps.open || sel || this.meter) {
       const r = this.game.partResult(p.id);
       const amps = Math.abs(r.current);
       const ampTxt = amps < 0.005 ? '0 A' : amps >= 100 ? '>99 A' : `${amps.toFixed(amps < 1 ? 2 : 1)} A`;
@@ -446,6 +448,8 @@ export class PanelView {
 
   pick(ndcX: number, ndcY: number): PanelPick | null {
     const ray = new THREE.Raycaster();
+    this.scene.updateMatrixWorld(true);
+    this.camera.updateMatrixWorld();
     ray.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
     const hits = ray.intersectObjects(this.pickables, false);
     // Terminals win over the wires they sit on.

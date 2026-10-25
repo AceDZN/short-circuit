@@ -79,7 +79,7 @@ export type DeviceDef =
   | { kind: 'door'; id: string; part: string; tiles: Tile[]; threshold: number; label: string }
   | { kind: 'window'; id: string; part: string; tile: Tile }
   | { kind: 'alarm'; id: string; part: string; tile: Tile; threshold: number }
-  | { kind: 'hazard'; id: string; part: string; tiles: Tile[]; threshold: number };
+  | { kind: 'hazard'; id: string; part: string; tiles: Tile[]; threshold: number; liveNode?: string; refNode?: string };
 
 export interface PanelDef {
   id: string;
@@ -169,7 +169,7 @@ export interface LevelDef {
   alwaysLit?: [number, number, number, number][];
 }
 
-export type FailReason = 'caught' | 'camera' | 'laser' | 'alarm' | 'pedestal' | 'shock' | 'fire';
+export type FailReason = 'caught' | 'camera' | 'laser' | 'alarm' | 'pedestal' | 'shock' | 'fire' | 'trapped';
 
 export interface PlacedPart {
   id: string;
@@ -237,7 +237,8 @@ export interface GameEvent {
     | 'checkpoint'
     | 'spark'
     | 'noise'
-    | 'hint';
+    | 'hint'
+    | 'guardHunt';
   id?: string;
   x?: number;
   y?: number;
