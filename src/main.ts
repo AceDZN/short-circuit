@@ -854,12 +854,15 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyE' || e.code === 'Enter') interact();
     if (e.code === 'Tab') {
       scannerToggle = !scannerToggle;
-      if (scannerToggle) sfx.scanSweep();
-      else sfx.scanner(false);
+      if (scannerToggle) {
+        sfx.scanSweep();
+        scannerUsed = true;
+      } else sfx.scanner(false);
     }
     if (e.code === 'Space') {
       e.preventDefault();
       if (!scannerHeld) sfx.scanSweep();
+      scannerUsed = true;
       scannerHeld = true;
     }
     if (e.code === 'KeyQ' && !e.repeat) setOverview(true);
@@ -998,8 +1001,10 @@ function nearestWalkable(t: [number, number]): [number, number] {
 $('btnScanner').addEventListener('click', () => {
   scannerToggle = !scannerToggle;
   sfx.unlock();
-  if (scannerToggle) sfx.scanSweep();
-  else sfx.scanner(false);
+  if (scannerToggle) {
+    sfx.scanSweep();
+    scannerUsed = true;
+  } else sfx.scanner(false);
 });
 $('btnAct').addEventListener('click', interact);
 $('btnPause').addEventListener('click', () => setScreen('pause'));
