@@ -768,6 +768,7 @@ window.addEventListener('keydown', (e) => {
       if (!scannerHeld) sfx.scanSweep();
       scannerHeld = true;
     }
+    if (e.code === 'KeyQ' && !e.repeat) setOverview(true);
     if (e.code === 'KeyZ') world.rotate(-1);
     if (e.code === 'KeyX') world.rotate(1);
     if (e.code === 'KeyH') useHint();
@@ -776,8 +777,17 @@ window.addEventListener('keydown', (e) => {
   } else if (screen === 'pause' && (e.code === 'KeyP' || e.code === 'Escape')) setScreen('play');
   else if ((screen === 'title' || screen === 'brief') && e.code === 'Enter') screen === 'title' ? showBrief() : startPlay();
 });
+function setOverview(on: boolean) {
+  if (world.overview === on) return;
+  world.overview = on;
+  game.paused = on || screen !== 'play';
+  $('btnMap').classList.toggle('on', on);
+  if (on) sfx.whoosh();
+}
+
 window.addEventListener('keyup', (e) => {
   keys.delete(e.code);
+  if (e.code === 'KeyQ') setOverview(false);
   if (e.code === 'Space') scannerHeld = false;
 });
 window.addEventListener('blur', () => {
@@ -901,6 +911,7 @@ $('btnAct').addEventListener('click', interact);
 $('btnPause').addEventListener('click', () => setScreen('pause'));
 $('btnMute').addEventListener('click', toggleMute);
 $('btnRotL').addEventListener('click', () => world.rotate(-1));
+$('btnMap').addEventListener('click', () => setOverview(!world.overview));
 $('btnRotR').addEventListener('click', () => world.rotate(1));
 $('btnHint').addEventListener('click', useHint);
 $('toast').addEventListener('click', hideToast);

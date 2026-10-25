@@ -7,7 +7,7 @@ import fs from 'node:fs';
 const out = process.argv[2] ?? 'docs/captures';
 fs.mkdirSync(out, { recursive: true });
 const base = 'http://127.0.0.1:5196/';
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));

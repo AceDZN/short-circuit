@@ -70,6 +70,8 @@ export class WorldView {
   private zoom = 1;
   private endZoom = 1;
   private attract = false;
+  overview = false;
+  private routes = new THREE.Group();
   private reduced = false;
   private camTarget = new THREE.Vector3();
   private shake = 0;
@@ -154,6 +156,8 @@ export class WorldView {
     }
     this.buildScanner();
     s.add(this.scannerGroup);
+    this.buildRoutes();
+    s.add(this.routes);
     s.add(this.fx.points);
     this.applyWallHeights();
     const t = game.state.thief;
@@ -686,6 +690,31 @@ export class WorldView {
     return Math.PI / 4 + (i * Math.PI) / 2;
   }
 
+  /** Dotted patrol routes, shown in the overview map. */
+  private buildRoutes() {
+    for (const gd of this.level.guards) {
+      if (gd.route.length < 2) {
+        const post = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.45, 32), new THREE.MeshBasicMaterial({ color: 0xffb300, transparent: true, opacity: 0.9, depthWrite: false }));
+        post.rotation.x = -Math.PI / 2;
+        post.position.copy(tileCenter(gd.route[0].x, gd.route[0].y, 0.09));
+        this.routes.add(post);
+        continue;
+      }
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i < gd.route.length; i++) {
+        const a = gd.route[i];
+        const b = gd.route[(i + 1) % gd.route.length];
+        const path = this.game.grid.path([a.x, a.y], [b.x, b.y], (x, y) => this.game.grid.guardWalkable(x, y)) ?? [];
+        pts.push(tileCenter(a.x, a.y, 0.09), ...path.map(([x, y]) => tileCenter(x, y, 0.09)));
+      }
+      pts.push(pts[0].clone());
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: 0xffb300, dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.9 }));
+      line.computeLineDistances();
+      this.routes.add(line);
+    }
+    this.routes.visible = false;
+  }
+
   /** Opening flyover: show the exhibit, then the exit, then come back to the thief. */
   startIntro() {
     const pts: { pos: THREE.Vector3; hold: number; caption: string }[] = [];
@@ -728,9 +757,9 @@ export class WorldView {
     const t = this.game.state.thief;
     let want3 = new THREE.Vector3(t.x, 0, t.y);
     let rate = 5;
-    if (this.attract) {
+    if (this.attract || this.overview) {
       want3 = new THREE.Vector3(this.game.grid.w / 2, 0, this.game.grid.h / 2);
-      rate = 2;
+      rate = this.overview ? 6 : 2;
     } else if (this.intro) {
       const pt = this.intro.pts[this.intro.i];
       want3 = pt.pos;
@@ -754,7 +783,7 @@ export class WorldView {
     const aspect = this.camera.aspect || 1.6;
     // push in on the thief when the heist ends (busted or escaped)
     const ended = this.game.state.status !== 'playing';
-    this.endZoom += ((ended ? 0.55 : this.attract ? 1.45 : this.intro ? 1.25 : 1) - this.endZoom) * Math.min(1, dt * 2.5);
+    this.endZoom += ((ended ? 0.55 : this.overview ? Math.max(this.game.grid.w, this.game.grid.h) / 13 : this.attract ? 1.45 : this.intro ? 1.25 : 1) - this.endZoom) * Math.min(1, dt * (this.overview ? 6 : 2.5));
     const dist = 23 * this.zoom * this.endZoom * Math.min(1.6, Math.max(1, 1.2 / aspect));
     const el = 0.92;
     const shake = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
@@ -938,6 +967,7 @@ export class WorldView {
       else this.labels.set(`bark-${gs.id}`, new THREE.Vector3(gs.x, 2.45, gs.y), `<span>${bark}</span>`, `bark ${gs.bark === '!' || gs.bark === '!!' ? 'alert' : ''} ${gs.bark === 'fix' ? 'fix' : ''}`, !!gs.bark);
     }
 
+    this.routes.visible = this.overview;
     // objective markers, pinned to the screen edge when off-screen
     const done = game.objectiveDone();
     for (const e of this.level.exhibits) {

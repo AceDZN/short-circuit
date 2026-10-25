@@ -243,3 +243,4 @@ body.in-panel .joy { display: none !important; }
 .say span { display: inline-block; max-width: 220px; background: #fff; color: #1a1a2a; font-size: 15px; font-weight: 700; padding: 5px 11px; border-radius: 14px 14px 14px 4px; box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35); animation: pop 0.25s ease-out; white-space: nowrap; }
 .closecall span { display: inline-block; color: var(--cyan); font-weight: 900; font-size: 22px; text-shadow: 0 0 12px rgba(56, 232, 255, 0.9), 0 2px 0 #000; animation: rise 1.4s ease-out forwards; white-space: nowrap; }
 @keyframes rise { from { transform: translateY(10px) scale(0.6); opacity: 0; } 20% { transform: translateY(0) scale(1.15); opacity: 1; } to { transform: translateY(-40px) scale(1); opacity: 0; } }
+.icon-btn.on { background: var(--yellow); color: #111; }
