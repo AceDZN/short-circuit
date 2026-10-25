@@ -225,7 +225,7 @@ export class WorldView {
       for (let x = 0; x < g.w; x++) {
         const c = g.at(x, y);
         if (c === 'b') {
-          const d = theme === 'courtyard' ? makePlanter() : makeDesk();
+          const d = theme === 'courtyard' ? makePlanter() : makeDesk(x, y);
           d.position.copy(tileCenter(x, y));
           this.scene.add(d);
         } else if (c === 'g') {
@@ -921,7 +921,10 @@ export class WorldView {
           grp.scale.setScalar(0.35);
           grp.rotation.y = Math.PI / 2 - st.thief.heading;
         }
-      } else if (!opts.reducedMotion) grp.rotation.y += dt * 0.4;
+      } else if (!opts.reducedMotion) {
+        grp.rotation.y += dt * 0.4;
+        grp.traverse((o) => o.name === 'spin' && (o.rotation.x += dt * 2));
+      }
       if (e.part) {
         const fil = grp.getObjectByName('filament') as THREE.Mesh | undefined;
         const lit = !stolen && game.current(e.part) > 0.2;

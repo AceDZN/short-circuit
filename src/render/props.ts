@@ -82,23 +82,88 @@ export function makeExhibit(kind: 'pile' | 'bulb' | 'coil' | 'generator' | 'crow
     sp.name = 'halo';
     g.add(sp);
   } else if (kind === 'generator') {
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.6, 24), M.copper);
-    body.rotation.z = Math.PI / 2;
-    body.position.y = 0.38;
-    g.add(body);
-    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.04, 10, 28), M.darkSteel);
-    wheel.position.set(0.38, 0.38, 0);
-    wheel.rotation.y = Math.PI / 2;
+    // Faraday-style dynamo: iron frame, copper-wound drum, spoked brass flywheel, belt
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.08, 0.42), M.darkSteel);
+    frame.position.y = 0.04;
+    g.add(frame);
+    for (const x of [-0.28, 0.28]) {
+      const stand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.34), M.darkSteel);
+      stand.position.set(x, 0.29, 0);
+      g.add(stand);
+    }
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.48, 24), M.copper);
+    drum.rotation.z = Math.PI / 2;
+    drum.position.y = 0.42;
+    drum.name = 'spin';
+    g.add(drum);
+    for (let i = 0; i < 9; i++) {
+      const w = new THREE.Mesh(new THREE.TorusGeometry(0.175, 0.012, 6, 24), M.brass);
+      w.rotation.y = Math.PI / 2;
+      w.position.set(-0.2 + i * 0.05, 0.42, 0);
+      g.add(w);
+    }
+    const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.9, 10), M.steel);
+    axle.rotation.z = Math.PI / 2;
+    axle.position.y = 0.42;
+    g.add(axle);
+    const wheel = new THREE.Group();
+    wheel.position.set(0.44, 0.42, 0);
+    wheel.name = 'spin';
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.03, 10, 36), M.brass);
+    rim.rotation.y = Math.PI / 2;
+    wheel.add(rim);
+    for (let i = 0; i < 6; i++) {
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.58, 0.02), M.brass);
+      spoke.rotation.x = (i / 6) * Math.PI;
+      wheel.add(spoke);
+    }
     g.add(wheel);
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.012, 6, 30), new THREE.MeshStandardMaterial({ color: 0x3a2618, roughness: 0.9 }));
+    belt.rotation.y = Math.PI / 2;
+    belt.scale.set(1, 1.7, 1);
+    belt.position.set(0.5, 0.2, 0);
+    g.add(belt);
+    const plaque = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.01), M.brass);
+    plaque.position.set(0, 0.08, 0.215);
+    g.add(plaque);
   } else {
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.18, 8, 1, true), new THREE.MeshStandardMaterial({ color: 0xffd04a, metalness: 1, roughness: 0.2, side: THREE.DoubleSide }));
-    crown.position.y = 0.2;
-    g.add(crown);
-    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), emissive(0x40e0ff, 3));
-    gem.position.y = 0.36;
-    g.add(gem);
-    const sp = glowSprite(0x60e8ff, 0.9, 0.7);
-    sp.position.y = 0.3;
+    // a jewelled crown on a velvet cushion
+    const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.5), M.velvet);
+    cushion.position.y = 0.05;
+    g.add(cushion);
+    for (const [x, z] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) {
+      const tassel = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), M.brass);
+      tassel.position.set(x, 0.07, z);
+      g.add(tassel);
+    }
+    const gold = new THREE.MeshStandardMaterial({ color: 0xffcc40, metalness: 1, roughness: 0.18 });
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.18, 0.12, 32, 1, true), new THREE.MeshStandardMaterial({ color: 0xffcc40, metalness: 1, roughness: 0.18, side: THREE.DoubleSide }));
+    band.position.y = 0.17;
+    g.add(band);
+    const jewelCols = [0x40e0ff, 0xff4060, 0x60ff90, 0xb070ff];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const pt = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.14, 6), gold);
+      pt.position.set(Math.cos(a) * 0.19, 0.29, Math.sin(a) * 0.19);
+      g.add(pt);
+      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), gold);
+      orb.position.set(Math.cos(a) * 0.19, 0.37, Math.sin(a) * 0.19);
+      g.add(orb);
+      const jewel = new THREE.Mesh(new THREE.OctahedronGeometry(0.03), emissive(jewelCols[i % 4], 1.6));
+      jewel.position.set(Math.cos(a) * 0.205, 0.17, Math.sin(a) * 0.205);
+      g.add(jewel);
+    }
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.015, 8, 32, Math.PI), gold);
+    arch.position.y = 0.22;
+    g.add(arch);
+    const arch2 = arch.clone();
+    arch2.rotation.y = Math.PI / 2;
+    g.add(arch2);
+    const top = new THREE.Mesh(new THREE.OctahedronGeometry(0.06), emissive(0x40e0ff, 3));
+    top.position.y = 0.44;
+    g.add(top);
+    const sp = glowSprite(0x60e8ff, 0.9, 0.6);
+    sp.position.y = 0.32;
     g.add(sp);
   }
   return g;
@@ -278,12 +343,47 @@ export function makeExitSign() {
   return g;
 }
 
-export function makeDesk() {
+export function makeDesk(x = 0, y = 0) {
   const g = new THREE.Group();
-  const top = new THREE.Mesh(new THREE.BoxGeometry(1, 0.9, 0.9), M.wood);
-  top.position.y = 0.45;
-  top.castShadow = top.receiveShadow = true;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1, 0.85, 0.8), M.wood);
+  body.position.y = 0.425;
+  body.castShadow = body.receiveShadow = true;
+  g.add(body);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.06, 0.95), new THREE.MeshStandardMaterial({ color: 0x8a5a36, roughness: 0.35, metalness: 0.05 }));
+  top.position.y = 0.88;
+  top.castShadow = true;
   g.add(top);
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.03, 0.02), M.brass);
+  trim.position.set(0, 0.7, 0.41);
+  g.add(trim);
+  // every few tiles: a glowing monitor or a little desk lamp
+  const r = (x * 7 + y * 13) % 5;
+  if (r === 1) {
+    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.32, 0.04), M.black);
+    screen.position.set(0, 1.12, -0.15);
+    g.add(screen);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.26), emissive(0x3a8cff, 1.4));
+    glow.position.set(0, 1.12, -0.128);
+    g.add(glow);
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.14, 0.06), M.black);
+    stand.position.set(0, 0.97, -0.15);
+    g.add(stand);
+  } else if (r === 3) {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.35), M.brass);
+    arm.position.set(0.25, 1.06, -0.1);
+    arm.rotation.z = 0.4;
+    g.add(arm);
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.1, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x2d6b3a, side: THREE.DoubleSide }));
+    shade.position.set(0.18, 1.22, -0.1);
+    g.add(shade);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), emissive(0xffd27a, 2.5));
+    bulb.position.set(0.18, 1.19, -0.1);
+    g.add(bulb);
+  } else if (r === 4) {
+    const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.1, 12), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.4 }));
+    mug.position.set(-0.2, 0.96, 0.05);
+    g.add(mug);
+  }
   return g;
 }
 
