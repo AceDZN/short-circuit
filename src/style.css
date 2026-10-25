@@ -268,3 +268,4 @@ body.in-panel .hud-tr .goals, body.in-panel .step-line { display: none; }
 @media (max-width: 760px) { .step-line { max-width: none; font-size: 14px; } body.in-panel .objective { display: none; } }
 /* title lock: a small corner badge instead of covering the name */
 .level-card .lock { inset: auto; top: 6px; left: 6px; width: 28px; height: 28px; font-size: 16px; border-radius: 8px; background: rgba(3, 3, 10, 0.75); }
+.pv-slot.dead { color: #a0a6b8; border-color: #6a7080; }

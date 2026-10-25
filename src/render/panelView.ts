@@ -7,6 +7,8 @@ import { M, emissive, glowSprite } from './props';
 import { boardTex, hazardTex, labelTex } from './textures';
 
 const S = 0.1; // metres per board unit
+/** Bigger pick volumes for fingers. */
+const HIT = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches ? 1.7 : 1;
 
 export type PanelPick =
   | { type: 'slot'; circuit: string; a: string; b: string }
@@ -67,7 +69,7 @@ export class PanelView {
     rim.position.set(0.8, 0.5, 0.6);
     s.add(rim);
     // cabinet
-    const board = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.86, 0.04), new THREE.MeshStandardMaterial({ map: boardTex(), roughness: 0.7, metalness: 0.4 }));
+    const board = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.86, 0.04), new THREE.MeshStandardMaterial({ map: boardTex(), color: 0x55666c, roughness: 0.85, metalness: 0.25 }));
     board.position.z = -0.025;
     s.add(board);
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x55615e, metalness: 0.7, roughness: 0.45 });
@@ -142,9 +144,15 @@ export class PanelView {
 
   /** Rebuild every mesh from the current circuit state. */
   rebuild() {
+    const shared = new Set<THREE.Material>(Object.values(M));
     for (const c of [...this.dyn.children]) {
       this.dyn.remove(c);
-      c.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+      c.traverse((o) => {
+        const m = o as THREE.Mesh;
+        m.geometry?.dispose();
+        const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
+        for (const mat of mats) if (!shared.has(mat)) mat.dispose();
+      });
     }
     this.pickables = [];
     this.flows = [];
@@ -155,7 +163,18 @@ export class PanelView {
       // circuit name tag
       const xs = Object.values(c.nodes).map((n) => n[0]);
       const ys = Object.values(c.nodes).map((n) => n[1]);
-      this.labels.set(`cname-${c.id}`, new THREE.Vector3((Math.max(...xs) + Math.min(...xs)) / 2 - 6, 3.6 - Math.max(...ys) - 0.7, 0).multiplyScalar(S), c.name + (c.showPower ? this.powerTag(c) : ''), 'pv-circuit');
+      const pad = 0.42;
+      const fx0 = (Math.min(...xs) - 6 - pad) * S;
+      const fx1 = (Math.max(...xs) - 6 + pad) * S;
+      const fy0 = (3.6 - Math.max(...ys) - pad) * S;
+      const fy1 = (3.6 - Math.min(...ys) + pad) * S;
+      const frame = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.PlaneGeometry(fx1 - fx0, fy1 - fy0)),
+        new THREE.LineBasicMaterial({ color: c.color, transparent: true, opacity: 0.45 }),
+      );
+      frame.position.set((fx0 + fx1) / 2, (fy0 + fy1) / 2, 0.002);
+      this.dyn.add(frame);
+      this.labels.set(`cname-${c.id}`, new THREE.Vector3((Math.max(...xs) + Math.min(...xs)) / 2 - 6, 3.6 - Math.max(...ys) - 0.7, 0).multiplyScalar(S), `<span style="color:#${c.color.toString(16).padStart(6, '0')}">●</span> ` + c.name + (c.showPower ? this.powerTag(c) : ''), 'pv-circuit');
       for (const p of c.parts) {
         const ps = st.parts[p.id];
         if (ps.removed) {
@@ -171,10 +190,12 @@ export class PanelView {
         const mid = a.clone().lerp(b, 0.5);
         const len = a.distanceTo(b);
         const vertical = Math.abs(a.x - b.x) < Math.abs(a.y - b.y);
-        const occupied = st.placed.some((pl) => pl.circuit === c.id && ((pl.a === sl.a && pl.b === sl.b) || (pl.a === sl.b && pl.b === sl.a)));
+        const inSlot = st.placed.filter((pl) => pl.circuit === c.id && ((pl.a === sl.a && pl.b === sl.b) || (pl.a === sl.b && pl.b === sl.a)));
+        const occupied = inSlot.length > 0;
+        const flowing = inSlot.some((pl) => this.game.current(pl.id) > 0.005);
         const box = new THREE.LineSegments(
           new THREE.EdgesGeometry(new THREE.PlaneGeometry(vertical ? 0.12 : len * 0.7, vertical ? len * 0.7 : 0.12)),
-          new THREE.LineDashedMaterial({ color: occupied ? 0x40ff90 : 0xffd04a, dashSize: 0.015, gapSize: 0.01 }),
+          new THREE.LineDashedMaterial({ color: flowing ? 0x40ff90 : occupied ? 0x8a8f9a : 0xffd04a, dashSize: 0.015, gapSize: 0.01 }),
         );
         box.computeLineDistances();
         box.position.copy(mid);
@@ -184,7 +205,7 @@ export class PanelView {
         slotHit.userData = { pick: { type: 'slot', circuit: c.id, a: sl.a, b: sl.b } satisfies PanelPick };
         this.dyn.add(slotHit);
         if (!occupied) this.pickables.push(slotHit);
-        this.labels.set(`slot-${c.id}-${sl.a}`, mid.clone().add(new THREE.Vector3(vertical ? 0.13 : 0, vertical ? 0 : -0.07, 0.02)), sl.label, `pv-slot ${occupied ? 'full' : ''}`);
+        this.labels.set(`slot-${c.id}-${sl.a}`, mid.clone().add(new THREE.Vector3(vertical ? 0.13 : 0, vertical ? 0 : -0.07, 0.02)), sl.label, `pv-slot ${flowing ? 'full' : occupied ? 'dead' : ''}`);
       }
       // terminals
       const terms = new Set(editable ? this.game.terminalsOf(c.id) : []);
@@ -199,7 +220,7 @@ export class PanelView {
           ring.position.copy(bp(c, n, 0.032));
           ring.userData = { pick: { type: 'terminal', circuit: c.id, node: n } satisfies PanelPick, ring: true };
           this.dyn.add(ring);
-          const hit = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
+          const hit = new THREE.Mesh(new THREE.SphereGeometry(0.045 * HIT, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
           hit.position.copy(bp(c, n, 0.02));
           hit.userData = { pick: { type: 'terminal', circuit: c.id, node: n } satisfies PanelPick };
           this.dyn.add(hit);
@@ -298,7 +319,19 @@ export class PanelView {
     if (comp) group.add(comp);
     // device card: which thing in the building this load is
     const icon = DEVICE_ICON[p.kind];
-    if (icon) {
+    if (p.kind === 'motor') {
+      const dev = this.game.level.devices.find((d) => d.kind === 'door' && d.part === p.id);
+      const fuse = c.parts.find((pp) => pp.kind === 'fuse');
+      const need = dev && 'threshold' in dev ? dev.threshold : 1;
+      const max = (fuse?.rating ?? need * 2) * 1.3;
+      const center = new THREE.Vector3(0, -0.05, 0);
+      const perp = new THREE.Vector3(-dir.y, dir.x, 0).normalize();
+      // inside the loop, where the side panels never cover it
+      if (perp.dot(mid.clone().sub(center)) > 0) perp.negate();
+      const gauge = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.17), new THREE.MeshBasicMaterial({ map: gaugeTex(I, need, fuse?.rating ?? max, max), transparent: true, color: 0x8a8a8a }));
+      gauge.position.copy(mid).addScaledVector(perp, 0.2).setZ(0.03);
+      this.dyn.add(gauge);
+    } else if (icon) {
       const center = new THREE.Vector3(0, -0.05, 0);
       const perp = new THREE.Vector3(-dir.y, dir.x, 0).normalize();
       if (perp.dot(mid.clone().sub(center)) < 0) perp.negate();
@@ -312,7 +345,7 @@ export class PanelView {
       }
     }
     // pick volume
-    const hit = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.05, len * 0.8), isWire ? 0.045 : 0.09, 0.06), new THREE.MeshBasicMaterial({ visible: false }));
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.05, len * 0.8), (isWire ? 0.045 : 0.09) * HIT, 0.06), new THREE.MeshBasicMaterial({ visible: false }));
     hit.userData = { pick };
     group.add(hit);
     this.pickables.push(hit);
@@ -320,7 +353,7 @@ export class PanelView {
     const sel = this.selection?.type === 'part' && this.selection.id === p.id;
     const hov = this.hover?.type === 'part' && this.hover.id === p.id;
     if (sel || hov) {
-      const halo = new THREE.Mesh(new THREE.BoxGeometry(len * 0.85, isWire ? 0.04 : 0.11, 0.005), new THREE.MeshBasicMaterial({ color: sel ? 0xffd04a : 0x8fe8ff, transparent: true, opacity: sel ? 0.35 : 0.18 }));
+      const halo = new THREE.Mesh(new THREE.BoxGeometry(len * 0.9, isWire ? 0.07 : 0.14, 0.005), new THREE.MeshBasicMaterial({ color: sel ? 0xffd04a : 0x8fe8ff, transparent: true, opacity: sel ? 0.55 : 0.22, blending: THREE.AdditiveBlending, depthWrite: false }));
       halo.position.z = -0.004;
       group.add(halo);
     }
@@ -481,8 +514,8 @@ export class PanelView {
     const I = this.game.current(pl.id);
     const live = I > 0.005;
     const spec = ITEMS[pl.item];
-    const color = spec.material === 'insulator' ? 0x888888 : 0xff4a4a;
-    const mat = new THREE.MeshStandardMaterial({ color: live ? 0xff7050 : 0x7a2a2a, emissive: live ? color : 0, emissiveIntensity: live ? 0.8 : 0, roughness: 0.5 });
+    const insulator = spec.material === 'insulator';
+    const mat = new THREE.MeshStandardMaterial({ color: live ? 0xff7050 : insulator ? 0x55585e : 0x7a2a2a, emissive: live ? 0xff4a4a : 0, emissiveIntensity: live ? 0.8 : 0, roughness: 0.6 });
     const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.006, 6), mat);
     this.dyn.add(tube);
     // clips at both ends
@@ -507,7 +540,7 @@ export class PanelView {
     const sel = this.selection?.type === 'placed' && this.selection.id === pl.id;
     const amps = I;
     const ampTxt = amps < 0.005 ? '0 A' : amps >= 100 ? '>99 A' : `${amps.toFixed(amps < 1 ? 2 : 1)} A`;
-    this.labels.set(`pl-${pl.id}`, at.clone().add(new THREE.Vector3(0, 0.07, 0)), `<span>${spec.name}</span><bdi dir="ltr">${ampTxt}</bdi>`, `pv-tag placed ${live ? 'live' : 'dead'} ${sel ? 'sel' : ''}`);
+    this.labels.set(`pl-${pl.id}`, at.clone().add(new THREE.Vector3(0, 0.07, 0)), `<span>${spec.name}</span>${insulator ? '<b class="bad">מבודד</b>' : ''}<bdi dir="ltr">${ampTxt}</bdi>`, `pv-tag placed ${live ? 'live' : 'dead'} ${sel ? 'sel' : ''}`);
   }
 
   pick(ndcX: number, ndcY: number): PanelPick | null {
@@ -585,6 +618,68 @@ const DEVICE_ICON: Partial<Record<PartDef['kind'], string>> = {
   sensor: '🪟',
   cable: '⚠️',
 };
+/** An analogue ammeter: green band = enough to lift the door, red = the fuse melts. */
+const gaugeCache = new Map<string, THREE.Texture>();
+function gaugeTex(I: number, need: number, fuse: number, max: number) {
+  const key = `${I.toFixed(2)}|${need}|${fuse}|${max}`;
+  let t = gaugeCache.get(key);
+  if (!t) {
+    t = drawGauge(I, need, fuse, max);
+    gaugeCache.set(key, t);
+  }
+  return t;
+}
+function drawGauge(I: number, need: number, fuse: number, max: number) {
+  const cv = document.createElement('canvas');
+  cv.width = 256;
+  cv.height = 168;
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#efe6cf';
+  c.beginPath();
+  c.roundRect(4, 4, 248, 160, 18);
+  c.fill();
+  c.strokeStyle = '#3a3226';
+  c.lineWidth = 6;
+  c.stroke();
+  const cx = 128;
+  const cy = 142;
+  const R = 104;
+  const ang = (v: number) => Math.PI + (Math.min(max, Math.max(0, v)) / max) * Math.PI;
+  const band = (a: number, b: number, col: string) => {
+    c.strokeStyle = col;
+    c.lineWidth = 16;
+    c.beginPath();
+    c.arc(cx, cy, R - 10, ang(a), ang(b));
+    c.stroke();
+  };
+  band(0, need, '#c9c2ad');
+  band(need, fuse, '#3cc46a');
+  band(fuse, max, '#e04646');
+  c.fillStyle = '#2a241a';
+  c.font = '700 22px Rubik, sans-serif';
+  c.textAlign = 'center';
+  for (let v = 0; v <= max + 1e-6; v += max > 6 ? 2 : 1) {
+    const a = ang(v);
+    c.fillText(String(v), cx + Math.cos(a) * (R - 38), cy + Math.sin(a) * (R - 38) + 8);
+  }
+  const a = ang(I);
+  c.strokeStyle = '#b01818';
+  c.lineWidth = 5;
+  c.beginPath();
+  c.moveTo(cx, cy);
+  c.lineTo(cx + Math.cos(a) * (R - 4), cy + Math.sin(a) * (R - 4));
+  c.stroke();
+  c.fillStyle = '#2a241a';
+  c.beginPath();
+  c.arc(cx, cy, 9, 0, Math.PI * 2);
+  c.fill();
+  c.font = '800 26px Rubik, sans-serif';
+  c.fillText(`${I.toFixed(2)} A`, cx, 40);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 const iconCache = new Map<string, THREE.Texture>();
 function iconTex(icon: string) {
   let t = iconCache.get(icon);

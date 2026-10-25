@@ -135,7 +135,19 @@ export function glowTex() {
   });
 }
 
+const labelCache = new Map<string, THREE.CanvasTexture>();
+/** Text on a rounded chip. Cached: the same label is never drawn twice. */
 export function labelTex(text: string, opts: { bg?: string; fg?: string; w?: number; h?: number; font?: string } = {}) {
+  const key = JSON.stringify([text, opts]);
+  let t = labelCache.get(key);
+  if (!t) {
+    t = drawLabel(text, opts);
+    labelCache.set(key, t);
+  }
+  return t;
+}
+
+function drawLabel(text: string, opts: { bg?: string; fg?: string; w?: number; h?: number; font?: string }) {
   const w = opts.w ?? 256;
   const h = opts.h ?? 96;
   return canvasTex(w, h, (c) => {
