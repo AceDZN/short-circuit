@@ -110,6 +110,7 @@ let pendingInteract: string | null = null;
 let meterMode = false;
 let introWasActive = true;
 let hitStop = 0;
+let slowMo = 0;
 const introSeen = new Set<number>();
 const keys = new Set<string>();
 const labelsEl = $('labels');
@@ -1163,7 +1164,10 @@ function driveAudio(dt: number) {
   else if (notice > 0.2 || hunting) mode = 'tension';
   sfx.setMusic(mode);
   const alert = notice > 0.5;
-  if (alert && !wasAlert && st.status === 'playing') sfx.alertSting();
+  if (alert && !wasAlert && st.status === 'playing') {
+    sfx.alertSting();
+    if (!settings.reduced) slowMo = 0.45;
+  }
   wasAlert = alert;
   if (screen !== 'play' || !game.running) return;
   const t = st.thief;
@@ -1188,6 +1192,10 @@ function frame(now: number) {
     if (hitStop > 0) {
       hitStop -= dt;
       tickSim(dt * 0.08);
+    } else if (slowMo > 0) {
+      // the "!" moment: a beat of slow motion to react
+      slowMo -= dt;
+      tickSim(dt * 0.4);
     } else tickSim(dt);
   }
   draw(dt);
