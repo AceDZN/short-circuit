@@ -13,9 +13,11 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Sfx, type MusicMode } from './audio';
+import { initHost, parseLevelParam, postToHost } from './host';
 import { LEVELS } from './levels';
 import { PanelView, type PanelPick } from './render/panelView';
 import { WorldView } from './render/world';
+import { loadModel } from './render/actors';
 import { Game, type LogEntry } from './sim/game';
 import { ITEMS } from './sim/items';
 import type { FailReason, GameEvent, HintDef, ItemKind } from './sim/types';
@@ -23,6 +25,7 @@ import { ITEM_SVG } from './ui/icons';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
+initHost('short-circuit');
 
 // ───────────────────────────── renderer
 
@@ -96,7 +99,9 @@ function logEvent(e: LogEntry) {
 
 type Screen = 'title' | 'brief' | 'play' | 'fail' | 'win' | 'pause';
 let screen: Screen = 'title';
-let levelIdx = Math.min(LEVELS.length - 1, Math.max(0, Number(params.get('level') ?? 1) - 1));
+// ?level=N (1-based) deep-links straight to that heist's brief, even if the save has it locked.
+const deepLevel = parseLevelParam(location.search, LEVELS.length);
+let levelIdx = deepLevel ?? Math.min(LEVELS.length - 1, Math.max(0, Number(params.get('level') ?? 1) - 1));
 let game!: Game;
 let world!: WorldView;
 let panelView: PanelView | null = null;
@@ -218,8 +223,24 @@ const BRIEFS: Record<string, string> = {
   l6: 'הכספת. בניין חדש, בלי רמזים. מתח אחד, נתיך ראשי אחד, הרבה מעגלים. תסרקו, תחשבו, ותצאו עם הכתר.',
 };
 
+// ───────────────────────────── workbook host bridge
+
+let hostReady = false;
+function markReady() {
+  if (hostReady) return;
+  hostReady = true;
+  postToHost({ type: 'ready' });
+}
+let levelStartedAt = 0;
+function hostLevelStart() {
+  markReady();
+  levelStartedAt = performance.now();
+  postToHost({ type: 'level-start', level: levelIdx + 1 });
+}
+
 function startPlay() {
   sfx.unlock();
+  hostLevelStart();
   setScreen('play');
   updateBag(true);
   if (!externalClock && !params.has('nointro') && !introSeen.has(levelIdx)) {
@@ -763,6 +784,7 @@ function processEvents(events: GameEvent[]) {
       }
       case 'win':
         sfx.win();
+        postToHost({ type: 'level-complete', level: levelIdx + 1, stars: winStars(), durationMs: Math.round(performance.now() - levelStartedAt) });
         clearTimeout(endTimer);
         endTimer = window.setTimeout(showWin, 1600);
         break;
@@ -804,13 +826,18 @@ function showFail(reason: FailReason) {
   setScreen('fail');
 }
 
+function winStars() {
+  const ghost = game.state.stats.spottedPeaks === 0;
+  const fast = game.state.time <= game.level.parSeconds;
+  return 1 + (ghost ? 1 : 0) + (fast ? 1 : 0);
+}
+
 function showWin() {
   sfx.setSiren(false);
   const st = game.state;
   const L = game.level;
   const ghost = st.stats.spottedPeaks === 0;
-  const fast = st.time <= L.parSeconds;
-  const stars = 1 + (ghost ? 1 : 0) + (fast ? 1 : 0);
+  const stars = winStars();
   progress.stars[levelIdx] = Math.max(progress.stars[levelIdx] ?? 0, stars);
   progress.unlocked = Math.max(progress.unlocked, Math.min(LEVELS.length, levelIdx + 2));
   store.set('short-circuit-progress', progress);
@@ -1064,6 +1091,7 @@ $('btnRetry').addEventListener('click', () => {
   renderPass.camera = world.camera;
   setScreen('play');
   updateBag(true);
+  hostLevelStart();
 });
 const restart = () => {
   sfx.setSiren(false);
@@ -1370,6 +1398,18 @@ window.__sc = {
 };
 
 loadLevel(levelIdx);
-setScreen(params.has('play') ? 'play' : 'title');
-if (params.has('play')) startPlay();
+if (params.has('play')) $('scrTitle').classList.add('hidden');
+else if (deepLevel !== null) showBrief();
+else setScreen('title');
+// ready = fonts and the two rigged characters are in (capped so a slow network never blocks play)
+Promise.race([
+  Promise.all([document.fonts?.ready, loadModel('thief'), loadModel('guard')]),
+  new Promise((r) => window.setTimeout(r, 5000)),
+]).then(() => {
+  markReady();
+  if (params.has('play')) {
+    setScreen('play');
+    startPlay();
+  }
+});
 requestAnimationFrame(frame);
