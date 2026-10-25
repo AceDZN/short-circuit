@@ -65,6 +65,7 @@ export class WorldView {
   yawIndex = 0;
   private yaw = Math.PI / 4;
   private zoom = 1;
+  private endZoom = 1;
   private camTarget = new THREE.Vector3();
   private shake = 0;
   private walls!: THREE.InstancedMesh;
@@ -596,7 +597,10 @@ export class WorldView {
     const want = this.yawFor(this.yawIndex);
     this.yaw += angleLerp(this.yaw, want, snap ? 1 : 1 - Math.exp(-dt * 8));
     const aspect = this.camera.aspect || 1.6;
-    const dist = 23 * this.zoom * Math.max(1, 1.45 / aspect);
+    // push in on the thief when the heist ends (busted or escaped)
+    const ended = this.game.state.status !== 'playing';
+    this.endZoom += ((ended ? 0.55 : 1) - this.endZoom) * Math.min(1, dt * 2.5);
+    const dist = 23 * this.zoom * this.endZoom * Math.max(1, 1.45 / aspect);
     const el = 0.92;
     const shake = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     this.camera.position.set(

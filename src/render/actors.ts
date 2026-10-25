@@ -73,6 +73,8 @@ function glbActor(gltf: GLTF, height: number, yaw: number): Actor {
   lampAnchor.position.set(0, height * 0.93, 0.12);
   root.add(lampAnchor);
   const mixer = new THREE.AnimationMixer(model);
+  const bone = (n: string) => model.getObjectByName(`mixamorig${n}`) ?? model.getObjectByName(`mixamorig:${n}`);
+  const arms = { la: bone('LeftArm'), ra: bone('RightArm'), lf: bone('LeftForeArm'), rf: bone('RightForeArm') };
   let pose: ActorPose | null = null;
   let action: THREE.AnimationAction | null = null;
   const hasRun = gltf.animations.some((a) => /run|jog|sprint/i.test(a.name));
@@ -98,9 +100,21 @@ function glbActor(gltf: GLTF, height: number, yaw: number): Actor {
     },
     update(dt) {
       mixer.update(dt);
+      // No surrender/cheer clip in the Tripo rig: raise the arms on top of the idle clip.
+      if ((pose === 'busted' || pose === 'cheer') && arms.la && arms.ra) {
+        const t = (window as unknown as { __armPose?: number[] }).__armPose ?? ARMS_UP;
+        const wave = pose === 'cheer' ? Math.sin(performance.now() / 120) * 0.25 : 0;
+        arms.la.rotation.set(t[0] + wave, t[1], t[2]);
+        arms.ra.rotation.set(t[3] - wave, t[4], t[5]);
+        arms.lf?.rotation.set(t[6], t[7], t[8]);
+        arms.rf?.rotation.set(t[9], t[10], t[11]);
+      }
     },
   };
 }
+
+/** Euler angles (Mixamo local space) for both arms raised: L arm, R arm, L forearm, R forearm. */
+const ARMS_UP = [2.5, 0, 0, -2.5, 0, 0, 0, 0, -0.8, 0, 0, 0.8];
 
 // ───────────────────────── procedural fallbacks (also used before GLBs load)
 
