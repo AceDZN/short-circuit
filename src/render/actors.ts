@@ -78,6 +78,8 @@ function glbActor(gltf: GLTF, height: number, yaw: number): Actor {
   let pose: ActorPose | null = null;
   let action: THREE.AnimationAction | null = null;
   const hasRun = gltf.animations.some((a) => /run|jog|sprint/i.test(a.name));
+  // a pose has a real clip only if one of its keywords (not the idle fallback) matches
+  const hasClip = (p: ActorPose) => CLIP_KEYS[p].filter((k) => k !== 'idle').some((k) => gltf.animations.some((a) => a.name.toLowerCase().includes(k)));
   return {
     root,
     lampAnchor,
@@ -101,7 +103,7 @@ function glbActor(gltf: GLTF, height: number, yaw: number): Actor {
     update(dt) {
       mixer.update(dt);
       // No surrender/cheer clip in the Tripo rig: raise the arms on top of the idle clip.
-      if ((pose === 'busted' || pose === 'cheer') && arms.la && arms.ra) {
+      if ((pose === 'busted' || pose === 'cheer') && arms.la && arms.ra && !hasClip(pose)) {
         const t = (window as unknown as { __armPose?: number[] }).__armPose ?? ARMS_UP;
         const wave = pose === 'cheer' ? Math.sin(performance.now() / 120) * 0.25 : 0;
         arms.la.rotation.set(t[0] + wave, t[1], t[2]);
